@@ -1,6 +1,6 @@
 # Market City — MVP Plan
 
-Sep 25, 2026 (updated Sep 28, 2026: metric layer built; fundamentals and live prices moved to the click-through popup) · @Jordan
+Sep 25, 2026 (updated Sep 28, 2026: metric layer built; fundamentals and live prices moved to the click-through popup; list view and Vue frontend added) · @Jordan
 
 ## Overview
 
@@ -8,7 +8,8 @@ Market City renders a stock index or a personal portfolio as a 3D town: each hol
 
 - **Footprint** = share of the index or portfolio, so the whole town adds up to 100%.
 - **Height and colour** = metrics the viewer picks (1-year return, volatility, today's move, and so on).
-- **Click a building** = detail popup with fundamentals (P/E, market cap, dividend yield) and a live price stream.
+- **List view** = the same data as a sortable, filterable table; filters carry over to the city.
+- **Click a building** (or a list row) = detail popup with fundamentals (P/E, market cap, dividend yield) and a live price stream.
 - **Districts** = sectors (potentially grouping stocks on some shared characteristic e.g. tech), later emergent clusters linked by correlation "roads".
 - **The show-off moment:** paste in your own holdings and see your town next to the S&P 500, or replay a crash day and watch the city turn red.
 
@@ -22,8 +23,9 @@ The MVP is the S&P 500 as a 3D city built from a daily snapshot, with a selectab
 - Daily metric snapshot for all \~500 tickers, computed before the US open.
 - Treemap layout: sectors as districts, companies as buildings.
 - Height and colour dropdowns over a fixed metric catalogue, with animated transitions.
+- List view: one row per position with weight and every metric; sort by any column; filters (sector, search, metric ranges) shared with the city.
 - Hover tooltip: name, ticker, weight, latest close, day change and the selected metrics (all from the snapshot, no API calls).
-- Click-through detail popup: fundamentals (Finnhub, fetched on click) and a live minute-bar price stream (Alpaca WebSocket) while it is open.
+- Click-through detail popup (from a building or a list row): fundamentals (Finnhub, fetched on click) and a live minute-bar price stream (Alpaca WebSocket) while it is open.
 - Replay mode ("yesterday in 60 seconds"), built from Alpaca historical minute bars fetched after the session, not from a live recording. Approach to be confirmed.
 - One generic building style per sector (coloured boxes or simple towers).
 - Deployed with a public link you can send to friends.
@@ -41,6 +43,7 @@ The MVP is the S&P 500 as a 3D city built from a daily snapshot, with a selectab
 
 - [ ] A visitor opens the link and sees all \~500 buildings within 3 seconds.
 - [ ] Clicking a building opens a popup with its fundamentals within 2 seconds, and during market hours its price updates each minute.
+- [ ] Sorting or filtering the list updates instantly, and a list filter is reflected in the city.
 - [ ] Switching the height metric animates in under 1 second at 60 fps on a laptop.
 - [ ] Outside market hours, replay of the last recorded session works.
 
@@ -137,7 +140,7 @@ flowchart LR
   DB --> M
   M --> API
   I -- price ticks --> API
-  API --> UI[Browser: Three.js city]
+  API --> UI[Browser: Vue app — city + list views]
 ```
 
 **Core boundaries (the expansion points)**
@@ -172,7 +175,7 @@ flowchart LR
 **Data flow**
 
 1. Daily job (before US open): fetch holdings and daily bars; compute daily metrics; store per ticker (so any universe reuses them). After the close, fetch the session's historical minute bars for replay.
-2. Browser loads the universe and metrics once; the city is static for the session and animates only on metric switches or replay.
+2. Browser loads the universe and metrics once into one store; the city and the list both render from it. The city is static for the session and animates only on metric switches or replay; the list sorts and filters in the browser.
 3. On click: the popup fetches that ticker's fundamentals (Finnhub, cached per ticker per day) and opens `WS /live?ticker=` to stream its minute bars; the subscription closes with the popup.
 
 **Scaling path (only when needed)**
@@ -193,11 +196,14 @@ flowchart LR
 | HTTP / WS clients | httpx, websockets (or alpaca-py) | Async, retries |
 | Database | SQLite (MVP) → Postgres + TimescaleDB | Zero setup now, time-series later |
 | ORM / migrations | SQLAlchemy 2 + Alembic | Standard, works with both databases |
-| Frontend build | Vite + TypeScript | Fast dev server, no framework weight |
+| Frontend framework | Vue 3 (Composition API) | Two views sharing state plus a table and a popup; closest to Angular, `watch()` suits an imperative Three.js scene |
+| Frontend state | Pinia | One store for universe, metrics, filters and selection |
+| Frontend build | Vite + TypeScript | Fast dev server, typed API payloads |
+| Table | TanStack Table (Vue adapter) | Headless sorting and filtering |
 | 3D | Three.js with InstancedMesh, OrbitControls | 500 buildings in one draw call |
 | Layout | d3-hierarchy (squarified treemap) | Districts and footprints without custom packing |
 | Later layout | d3-force or networkx spring layout | Correlation roads and clusters |
-| UI overlay | Plain HTML/CSS; lil-gui while developing | Dropdowns, slider, tooltip |
+| UI overlay | Vue components; lil-gui while developing | Dropdowns, slider, tooltip, popup |
 | Animation | Tween between old and new values per frame | Smooth metric switches |
 | Containers | Docker + docker-compose | Same setup locally and deployed |
 | Hosting | Fly.io or Railway (backend), Cloudflare Pages (frontend) | Cheap, one public link |
@@ -267,7 +273,7 @@ Each phase ends with something you can show someone; no phase starts until the p
 | Phase | Delivers | Done when |
 | --- | --- | --- |
 | 0. Spike | Script: SPY file + Alpaca daily bars → JSON; static Three.js treemap city | You can orbit a city of 500 boxes locally |
-| 1. MVP | Metric dropdowns, animated transitions, click-through popup (fundamentals + live price), replay, deploy | Public link; checklist under MVP scope is ticked |
+| 1. MVP | List view, metric dropdowns, animated transitions, click-through popup (fundamentals + live price), replay, deploy | Public link; checklist under MVP scope is ticked |
 | 2. Portfolios (US) | Manual portfolio builder, highlight-in-index and side-by-side views | A portfolio of Apple, Amazon, Nvidia renders with correct weights |
 | 3. Non-US | Price router, EU provider, FX conversion, exchange calendars | Airbus sits next to Apple with weights in EUR |
 | 4. Import | CSV parsers for at least two brokers | A real broker export imports with unmatched rows flagged |

@@ -22,7 +22,7 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Live popup stream (Phase B): complete.** `WS /live?ticker=` sends the latest bar immediately, then minute bars. `LiveBarHub` (`services/live.py`) shares Alpaca's ONE allowed WebSocket connection across all popups: ref-counted per-ticker subscriptions, lazy connect, idle disconnect after 60s, reconnect + resubscribe with backoff, bounded per-viewer queues (drop oldest). `AssetCatalogue` (`services/assets.py`) resolves any ticker spelling for both popup endpoints. Verified live against Alpaca and a real uvicorn server. 74 tests.
 
-**Not yet built:** Three.js frontend (next), DB persistence (deliberately after the frontend).
+**Not yet built:** frontend (next — Vue 3 + TypeScript + Vite; list view first, then the Three.js city), DB persistence (deliberately after the frontend).
 
 **To re-check during US market hours:** whether Alpaca's free-tier latest-bar endpoint is real-time on IEX or 15-min delayed (pre-market it correctly returns the previous close). If delayed, label the popup's first price.
 
@@ -49,6 +49,8 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 - **Credentials are masked in `__repr__`.** `AlpacaCredentials`/`FinnhubCredentials` override `__repr__` to print `***`. Prevents accidental leaks via `print()`, logging, or debuggers. `.env` is gitignored; `.env.example` is committed as a template.
 - **No premature abstractions.** No `PriceProvider`/`ReferenceProvider` `Protocol` interfaces yet — we have exactly one implementation of each. Added when a second implementation arrives (Phase 3, European provider). Same reasoning for custom exceptions and the DB layer.
 - **Finnhub rate-limited via `time.sleep(1.1)` between calls.** Naïve but sufficient now that Finnhub is only called per clicked stock. Not extracted to a shared rate-limiter until a second rate-limited API needs one.
+- **Two frontend views, one state.** A Three.js city and a sortable/filterable list, both rendering one Pinia store (universe, chosen metrics, filters, selected ticker). Filters are shared (list filter dims/hides buildings); sort is list-only. Both open the same popup. Rows never stream — realtime stays popup-only. List is built first: quicker, and it verifies the data path and the numbers the city renders.
+- **Vue 3, not React or Angular.** User knows Angular and doesn't want it; Vue's templates and `ref`/`computed` map closely to Angular, and `watch()` fits imperative Three.js updates better than React's re-render model. Three.js is plain imperative code in one component (no TresJS/R3F-style wrapper). Table: TanStack Table (Vue adapter).
 - **CLI structure**: `python -m stocktown <command>` with argparse subcommands (`holdings`, `bars`, `fundamentals`, `stream`, `verify`, `metrics`). Each subcommand has a matching `preview_*` function in `cli/commands.py`. Keep new commands consistent with this shape. Business logic the API will also need (e.g. `load_spy_tickers`) lives in `services/`, not the CLI.
 
 ## Metric layer decisions
@@ -95,7 +97,7 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 
 ## What's next (in order)
 
-1. **Frontend** (user priority: a somewhat-functioning frontend before persistence): Vite + TypeScript + Three.js treemap (d3-hierarchy), districts by sector, metric dropdowns from `GET /metrics`, click-through popup.
+1. **Frontend** (user priority: a somewhat-functioning frontend before persistence): Vue 3 + TypeScript + Vite + Pinia. First the list view (columns from `GET /metrics`, sort, filters, click-through popup with `/instruments` + `WS /live`), then the Three.js treemap city (d3-hierarchy, districts by sector, metric dropdowns) on the same store. Later from the list: column picker, CSV export, portfolio columns, select rows → highlight in city.
 2. **Persistence** (`persistence/`): SQLite for MVP. Replaces the in-memory snapshot; daily bars for lookback; historical minute bars (REST, after the close) for replay; metric values cached **per ticker**.
 3. **Provider parser tests** (optional, small): `extract_pe_ratio`, SPY workbook parsing, `normalise_ticker`.
 

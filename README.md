@@ -1,12 +1,12 @@
 # Market City
 
-A 3D city visualisation of a stock index or portfolio, where each holding is a building. Footprint = index weight, height and colour = viewer-selectable metrics (1-year return, volatility, today's move, etc.).
+A 3D city visualisation of a stock index or portfolio, where each holding is a building. Footprint = index weight, height and colour = viewer-selectable metrics (1-year return, volatility, today's move, etc.). A second, list view shows the same data as a sortable, filterable table.
 
-The MVP renders the S&P 500 as a treemap city with a live detail view for any clicked-in stock. Later phases let users import their own portfolio or fund. See `StockTownOutline.md` for the full plan.
+The MVP renders the S&P 500 as a treemap city and as a list, with a live detail view for any clicked-in stock in either. Later phases let users import their own portfolio or fund. See `StockTownOutline.md` for the full plan.
 
 ## Status
 
-Backend MVP complete: data layer, metric layer, REST API and the live popup stream (`WS /live`). Next: the Three.js frontend. Persistence comes after a working frontend.
+Backend MVP complete: data layer, metric layer, REST API and the live popup stream (`WS /live`). Next: the frontend (Vue 3 + TypeScript + Vite), list view first, then the Three.js city. Persistence comes after a working frontend.
 
 | Data | Source | Provider module |
 |---|---|---|
@@ -64,6 +64,31 @@ Any ticker spelling works (`BRK.B`, `brk-b`, `BRK/B`). Alpaca's free tier allows
 
 Errors: `404` unknown universe/ticker; `503` provider down or rate-limited (with `Retry-After` when known). If a daily refresh fails, the previous snapshot keeps being served. CORS allows the Vite dev server (`http://localhost:5173`) by default; override with `CORS_ALLOWED_ORIGINS` in `.env`.
 
+## Frontend (planned)
+
+Two views over one shared state, switchable without reloading data:
+
+| View | What it shows | Interactions |
+|---|---|---|
+| **List** (built first) | One row per position: ticker, name, sector, weight, and a column per metric from `GET /metrics` | Sort by any column, filter (sector, text search, metric ranges), click a row → detail popup |
+| **City** | Three.js treemap: sector districts, footprint = weight, height and colour = chosen metrics | Orbit, hover, click a building → detail popup |
+
+- **One payload, two renderings.** Both views read the same `GET /universes/spy` response, and sorting and filtering happen in the browser (500 rows is trivial). No extra endpoints.
+- **Filters are shared, sort is list-only.** A filter set in the list dims or hides the non-matching buildings in the city. Sorting only applies to the list, since city positions come from the treemap layout.
+- **Same popup in both views.** Clicking loads fundamentals (`GET /instruments/{ticker}`) and opens the live price stream (`WS /live`). Rows never tick live; real-time stays popup-only.
+- **List first** because it's quicker to build, tests the full data path (payload, formatting, popup, WebSocket) end-to-end, and gives a readable check on the numbers the city renders.
+
+| Concern | Choice | Why |
+|---|---|---|
+| Framework | Vue 3 (Composition API) | Two views sharing state plus a table and a popup justify a framework. Vue's templates and `ref`/`computed` reactivity are close to Angular, and `watch()` suits updating an imperative Three.js scene |
+| State | Pinia | One store: universe, chosen metrics, filters, selected ticker |
+| Build | Vite + TypeScript | Fast dev server, typed API payloads |
+| Table | TanStack Table (Vue adapter) | Headless sorting/filtering, our own markup |
+| 3D | Three.js (`InstancedMesh`, `OrbitControls`) mounted in one Vue component | 500 buildings in one draw call |
+| Layout | d3-hierarchy (squarified treemap) | Districts and footprints without custom packing |
+
+Built out from the list view later: column picker, CSV export, portfolio columns (position P&L, contribution to return), selecting rows to highlight them in the city.
+
 ## CLI
 
 `uv run python -m stocktown <command>` runs the data previews.
@@ -85,7 +110,7 @@ Defaults to `AAPL MSFT NVDA` when no tickers are given.
 uv run pytest
 ```
 
-66 behavioural tests across metrics, services, providers and API routes, built from hand-written data with known answers — no network, ~0.7s. `tests/factories.py` holds test-data builders and fakes (loaders, clock); `tests/fake_alpaca.py` is an in-memory Alpaca stream. API tests run the real routes via FastAPI's `TestClient` with services swapped through `app.dependency_overrides`. Async tests use the anyio pytest plugin (`@pytest.mark.anyio`); `pytest-timeout` fails any test that hangs longer than 10s.
+74 behavioural tests across metrics, services, providers and API routes, built from hand-written data with known answers — no network, ~0.7s. `tests/factories.py` holds test-data builders and fakes (loaders, clock); `tests/fake_alpaca.py` is an in-memory Alpaca stream. API tests run the real routes via FastAPI's `TestClient` with services swapped through `app.dependency_overrides`. Async tests use the anyio pytest plugin (`@pytest.mark.anyio`); `pytest-timeout` fails any test that hangs longer than 10s.
 
 Each test guards a real failure mode (e.g. wrong one-year baseline, beta misaligned by date, five simultaneous visitors triggering five rebuilds, a closed popup leaking its subscription). Don't add tests that can't fail for a plausible bug — when adding tests, inject the bug they claim to catch and confirm they fail.
 
@@ -170,6 +195,7 @@ Each provider sub-package (`alpaca`, `finnhub`, `ssga`) re-exports its public fu
 - **Split-adjusted, not dividend-adjusted historical prices.** Matches what viewers expect from Yahoo Finance / TradingView (price return, not total return).
 - **Ticker reconciliation via normalisation.** SPY file and Alpaca use slightly different punctuation for share classes (`BRK.B` vs `BRK/B`). Strip everything except letters and digits, uppercase, match. Current resolution rate: 100% of SPY tickers.
 - **Real-time is popup-only, not full-city.** The city renders a static snapshot per session; live WebSocket streaming is used only for the detail view of a clicked-into stock. Sidesteps the free-tier subscription-limit unknown entirely.
+- **Two views, one state.** The city and the list are renderings of the same store (universe, metrics, filters, selection). A new metric appears as a city dropdown option and a list column with no frontend change.
 - **City metrics are price-only; fundamentals are click-only.** Alpaca bars are batched (fast at any universe size); Finnhub is one call per ticker per second. So P/E, market cap and dividend yield load in the detail popup when a stock is clicked, never for the whole city.
 - **Metrics are per ticker, scaled per universe.** A metric never knows which universe a ticker came from. Raw values are stored; the frontend scales them against whatever city is on screen, so portfolios reuse every metric unchanged.
 - **One payload per city.** `GET /universes/{id}` carries every position with every metric, so switching the height/colour metric needs no request. Items are `positions` with an `asset_class` so ETFs, options and commodities can join later without an API break.
