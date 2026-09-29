@@ -39,7 +39,7 @@ Full reasoning lives in the grill transcript; this is a reference card.
 | Theme | Zinc neutral + teal primary (avoids RdBu and plasma's purple end); Inter self-hosted via `@fontsource-variable/inter` |
 | Dev integration | Vite proxy to FastAPI |
 | API paths | Everything under `/api` (REST + `WS /api/live`); page routes own the rest; plan text omits the prefix |
-| Pinia | Three Setup Stores: `useUniverseStore`, `useFundamentalsStore`, `useLiveBarStore` |
+| Pinia | Two Setup Stores: `useUniverseStore`, `useFundamentalsStore`; the live feed is a composable owned by the drawer |
 | WS consumption | `useLiveBar(ticker)` composable + 3-try exponential-backoff reconnect |
 | Testing | Vitest + `@testing-library/vue`; behavioural names; inject fakes; mutation-verify |
 | CI | GitHub Actions — one workflow, backend job + frontend job |
@@ -228,34 +228,37 @@ Goal: all data-fetching primitives in place, unit-tested, no UI consumers yet.
 
 **Deliverables:**
 
-- `src/stores/universe.ts` — `useUniverseStore` (Setup Store). Accepts an
-  injected client for testability. Exposes `positions`, `sectors`,
-  `metricsCatalogue` (from `/metrics`), plus `{loading, error}`. Method:
-  `load(universeId)` fetches `/universes/{universeId}` and `/metrics` in parallel.
-- `src/stores/fundamentals.ts` — `useFundamentalsStore`. Per-ticker cache
-  keyed by ticker; `get(ticker)` returns cached entry or fetches from
-  `/instruments/{ticker}`. Entry shape: `{loading, error, data}` per ticker.
-- `src/stores/liveBar.ts` — `useLiveBarStore`. Per-ticker latest-bar cache.
-  Written to by `useLiveBar` composable (below); read by drawer components.
-- `src/composables/useLiveBar.ts` — takes a `Ref<string>` ticker; opens WS on
-  mount, closes on unmount, writes bars into `useLiveBarStore`. Handles WS
-  close codes: `4404` (unknown ticker) surfaces as an error ref; `4503`
-  (provider unavailable) surfaces separately. 3-try exponential backoff on
-  unexpected close (`1s → 2s → 4s`), then gives up and exposes a `disconnected`
-  status. Ref-safe: switching ticker mid-life closes the old WS and opens the
-  new one.
-- `src/api/liveClient.ts` — thin wrapper around browser `WebSocket` that the
-  composable uses; extracted so tests can inject a fake WS.
+- `src/composables/useApi.ts` — `API_KEY` + `useApi()`. `main.ts` does
+  `app.provide(API_KEY, createApi())`; stores call `useApi()` (Vue's
+  provide/inject — Spring-style DI). Tests use `piniaWith(fakeApi({...}))`
+  from `src/__tests__/fakeApi.ts`.
+- `src/stores/universe.ts` — `useUniverseStore` (Setup Store). Exposes
+  `universe`, `positions`, `metricsCatalogue` (from `/metrics`), plus
+  `{loading, error}`. Method: `load(universeId)` fetches
+  `/universes/{universeId}` and `/metrics` in parallel; a failed reload keeps
+  the universe already on screen. (`sectors` moved to Phase 4, next to the
+  filter bar that first uses it.)
+- `src/stores/fundamentals.ts` — `useFundamentalsStore`. Per-ticker cache.
+  Command `load(ticker)` (fetches once; in flight → no-op; failed → retries)
+  and query `entryFor(ticker)` → `{loading, error, data}`. Split so nothing
+  fetches inside a `computed`.
+- `src/composables/useLiveBar.ts` — `useLiveBar(ticker, openSocket?)` returns
+  `{ bar, status }`. No store and no wrapper file: the drawer is the only
+  consumer, and `openSocket` (default `new WebSocket(url)`) is the test seam.
+  Follows ticker changes (closes the old socket, clears the old bar); closes
+  on unmount (`onScopeDispose`). Close `4404` → `unknown-ticker`, `4503` →
+  `unavailable`, neither retried. Other drops retried after `1s → 2s → 4s`,
+  then `disconnected`; a message resets the retries.
 
 **Tests (mirror backend rules):**
 
-- `universe.spec.ts` — inject fake client; assert `load()` transitions
-  `{loading:true} → data → {loading:false}`; assert error path when client throws.
-- `fundamentals.spec.ts` — inject fake client; assert cache hit on second `get`;
-  assert per-ticker error isolation.
-- `liveBar.spec.ts` + `useLiveBar.spec.ts` — inject fake WS; assert bar arrival
-  updates store; assert reconnect fires 3× on unexpected close, then gives up;
-  assert unmount closes cleanly.
+- `universe.spec.ts` — loads the requested universe + catalogue; loading flag;
+  failed reload reports the error and keeps the universe on screen.
+- `fundamentals.spec.ts` — fetched once then cached (incl. double click);
+  per-ticker error isolation; failed ticker retried.
+- `useLiveBar.spec.ts` — `FakeSocket` that behaves like the browser (fires
+  `onclose` after `close()`); bar arrival; ticker switch; popup close during a
+  retry wait; exact backoff timing (fake timers); retry reset; `4404`/`4503`.
 
 Behavioural test names. Hand-built payloads via `src/__tests__/fixtures.ts` (mirror
 backend's `tests/factories.py`). No `vi.mock`; inject fakes as constructor
@@ -271,11 +274,9 @@ args.
 
 **Checkpoints:**
 
-1. `universe.ts` + its tests
-2. `fundamentals.ts` + its tests
-3. `liveBar.ts` + `useLiveBar.ts` + `liveClient.ts` + their tests
-4. Mutation verification report on the reconnect logic (inject a bug, confirm a
-   test fails)
+1. `useApi.ts`, `universe.ts`, `fundamentals.ts` + their tests — done
+2. `useLiveBar.ts` + its tests — done
+3. Mutation verification — done (stores: 10 bugs caught; `useLiveBar`: 14)
 
 ---
 
@@ -405,17 +406,19 @@ metrics, fundamentals, and OHLCV. Same drawer will serve the city view later.
 - `src/components/drawer/TickerDrawer.vue` — shadcn Sheet, right side. Opens
   when the current route has `:ticker`; closing pushes back to the parent
   (`/:universeId/list` or `/:universeId/city`). Internal layout is a scrollable column of sections.
+  Calls `useLiveBar(ticker)` once and passes `bar`/`status` to
+  `DrawerHeader` and `LiveBarSection` as props (one WebSocket per drawer).
 - `src/components/drawer/DrawerHeader.vue` — ticker, name, sector, live price,
-  day change. Live price + day change from `useLiveBar(ticker)`. Day change
+  day change. Live price + day change from the `bar` prop. Day change
   computed against the position's `last_close` from `useUniverseStore`
   (already in memory once the `last_close` backend follow-up lands).
 - `src/components/drawer/CityMetricsSection.vue` — compact 2-column list of
   every metric with its formatted value. Read from `useUniverseStore`.
 - `src/components/drawer/FundamentalsSection.vue` — P/E, market cap, dividend
-  yield. Uses `useFundamentalsStore().get(ticker)`. Skeleton while loading;
+  yield. Uses `useFundamentalsStore()` (`load` on ticker change, `entryFor` to read). Skeleton while loading;
   "unavailable — [retry]" on error.
 - `src/components/drawer/LiveBarSection.vue` — latest bar OHLCV + timestamp.
-  Uses `useLiveBar(ticker)`. Shows "connecting…" until first message;
+  Takes `bar`/`status` props. Shows "connecting…" until first message;
   "disconnected — retrying" on backoff; final "disconnected" after backoff
   exhausted.
 - Status handling:
@@ -426,8 +429,8 @@ metrics, fundamentals, and OHLCV. Same drawer will serve the city view later.
 - Tests:
   - `TickerDrawer.spec.ts` — mounts open with `:ticker`; closes → back-nav;
     unknown-ticker path.
-  - `LiveBarSection.spec.ts` — inject fake WS; assert render before/after first
-    bar; assert reconnect status transitions.
+  - `LiveBarSection.spec.ts` — plain props (no fake WebSocket needed); assert
+    render before/after first bar and for each status.
   - `FundamentalsSection.spec.ts` — inject fake client; loading → data → error
     paths.
 

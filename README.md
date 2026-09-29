@@ -103,7 +103,7 @@ Two views over one shared state, switchable without reloading data:
 | Concern | Choice | Why |
 |---|---|---|
 | Framework | Vue 3 (Composition API) | Two views sharing state plus a table and a popup justify a framework. Vue's templates and `ref`/`computed` reactivity are close to Angular, and `watch()` suits updating an imperative Three.js scene |
-| State | Pinia + URL | Three stores (universe, fundamentals, live bars); sort, filters, metric picks and the selected ticker live in the URL |
+| State | Pinia + URL | Two stores (universe, fundamentals) plus a live-bar composable; sort, filters, metric picks and the selected ticker live in the URL |
 | Build | Vite + TypeScript | Fast dev server, typed API payloads |
 | Table | TanStack Table (Vue adapter) | Headless sorting/filtering, our own markup |
 | 3D | Three.js (`InstancedMesh`, `OrbitControls`) mounted in one Vue component | 500 buildings in one draw call |
