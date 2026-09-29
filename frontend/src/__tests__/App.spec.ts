@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/vue'
+import { fireEvent, render, screen } from '@testing-library/vue'
 import { flushPromises } from '@vue/test-utils'
 import { createPinia } from 'pinia'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createMemoryHistory } from 'vue-router'
 
 import { ApiError, type Api } from '@/api/client'
@@ -33,8 +33,6 @@ function testPortfolioApi() {
 }
 
 describe('App', () => {
-  afterEach(cleanup)
-
   it('opens the default universe as a list at the root URL', async () => {
     const { api, requestedUniverses } = testPortfolioApi()
 

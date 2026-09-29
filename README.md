@@ -6,7 +6,7 @@ The MVP renders the S&P 500 as a treemap city and as a list, with a live detail 
 
 ## Status
 
-Backend MVP complete: data layer, metric layer, REST API and the live popup stream (`WS /live`). Next: the frontend (Vue 3 + TypeScript + Vite), list view first, then the Three.js city. Persistence comes after a working frontend.
+Backend MVP complete: data layer, metric layer, REST API and the live popup stream (`WS /live`). Frontend in progress: the list view is done; next the detail drawer, then the Three.js city. Persistence comes after a working frontend.
 
 | Data | Source | Provider module |
 |---|---|---|
@@ -53,7 +53,7 @@ Add a dependency with `uv add <package>` (or `uv add --dev <package>` for test/d
 uv run uvicorn stocktown.main:app --reload
 ```
 
-Interactive docs at <http://localhost:8000/docs>. On startup the S&P 500 snapshot builds in the background (~8s); after that responses come from memory, and the snapshot rebuilds once per day. Bar batches and the 11 sector workbooks are fetched 4 at a time: same request count, well inside the free tiers.
+Interactive docs at <http://localhost:8000/docs>. On startup the S&P 500 snapshot builds in the background (~10s, varies with Alpaca); after that responses come from memory, and the snapshot rebuilds once per day. Bar batches and the 11 sector workbooks are fetched 4 at a time: same request count, well inside the free tiers.
 
 Every endpoint lives under `/api`; the design notes below omit the prefix.
 
@@ -105,8 +105,8 @@ Two views over one shared state, switchable without reloading data:
 | Framework | Vue 3 (Composition API) | Two views sharing state plus a table and a popup justify a framework. Vue's templates and `ref`/`computed` reactivity are close to Angular, and `watch()` suits updating an imperative Three.js scene |
 | State | Pinia + URL | Two stores (universe, fundamentals) plus a live-bar composable; sort, filters, metric picks and the selected ticker live in the URL |
 | Build | Vite + TypeScript | Fast dev server, typed API payloads |
-| Table | TanStack Table (Vue adapter) | Headless sorting/filtering, our own markup |
-| 3D | Three.js (`InstancedMesh`, `OrbitControls`) mounted in one Vue component | 500 buildings in one draw call |
+| Table | TanStack Table v9 | Sorting and rendering with our own markup; filtering is a shared pure function |
+| 3D | Three.js (`InstancedMesh`, `MapControls`) mounted in one Vue component | 500 buildings in one draw call |
 | Layout | d3-hierarchy (squarified treemap) | Districts and footprints without custom packing |
 
 Built out from the list view later: column picker, CSV export, portfolio columns (position P&L, contribution to return), selecting rows to highlight them in the city.
@@ -138,6 +138,8 @@ uv run pytest
 Each test guards a real failure mode (e.g. wrong one-year baseline, beta misaligned by date, five simultaneous visitors triggering five rebuilds, a closed popup leaking its subscription). Don't add tests that can't fail for a plausible bug — when adding tests, inject the bug they claim to catch and confirm they fail.
 
 `TestClient` is not uvicorn: it cancels WebSocket handlers when the client leaves and reports close codes that a real server would turn into an HTTP 403. For WebSocket behaviour, also check against a real server.
+
+Frontend: `cd frontend && npm run test` — 53 Vitest tests (stores, composables, components, whole-app routing) against a fake Api, same rules.
 
 ## Project layout
 
@@ -218,7 +220,7 @@ Each provider sub-package (`alpaca`, `finnhub`, `ssga`) re-exports its public fu
 - **Split-adjusted, not dividend-adjusted historical prices.** Matches what viewers expect from Yahoo Finance / TradingView (price return, not total return).
 - **Ticker reconciliation via normalisation.** SPY file and Alpaca use slightly different punctuation for share classes (`BRK.B` vs `BRK/B`). Strip everything except letters and digits, uppercase, match. Current resolution rate: 100% of SPY tickers.
 - **Real-time is popup-only, not full-city.** The city renders a static snapshot per session; live WebSocket streaming is used only for the detail view of a clicked-into stock. Sidesteps the free-tier subscription-limit unknown entirely.
-- **Two views, one state.** The city and the list are renderings of the same store (universe, metrics, filters, selection). A new metric appears as a city dropdown option and a list column with no frontend change.
+- **Two views, one state.** The city and the list are renderings of the same data: the universe store plus URL state (filters, metric picks, selection). A new metric appears as a city dropdown option and a list column with no frontend change.
 - **City metrics are price-only; fundamentals are click-only.** Alpaca bars are batched (fast at any universe size); Finnhub is one call per ticker per second. So P/E, market cap and dividend yield load in the detail popup when a stock is clicked, never for the whole city.
 - **Metrics are per ticker, scaled per universe.** A metric never knows which universe a ticker came from. Raw values are stored; the frontend scales them against whatever city is on screen, so portfolios reuse every metric unchanged.
 - **One payload per city.** `GET /universes/{id}` carries every position with every metric, so switching the height/colour metric needs no request. Items are `positions` with an `asset_class` so ETFs, options and commodities can join later without an API break.

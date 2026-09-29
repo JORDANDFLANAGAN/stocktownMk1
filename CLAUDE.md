@@ -1,6 +1,6 @@
 # Market City — Session Context
 
-Short handover doc so a new Claude session can pick up where the previous one left off. See `StockTownOutline.md` for the full product/architecture plan and `README.md` for setup + CLI reference.
+Short handover doc so a new Claude session can pick up where the previous one left off. See `StockTownOutline.md` for the product vision (its implementation details can be outdated — **if docs disagree: CLAUDE.md > FrontendPlan.md > StockTownOutline.md**) and `README.md` for setup + CLI reference.
 
 ## What we're building
 
@@ -12,17 +12,17 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Metric layer: complete.** 7 price-based metrics in `services/metrics/`, computed from a single Alpaca fetch. Full S&P 500 × 7 metrics ≈ 5s (fetch; the maths is ~0.2s). Preview with `uv run python -m stocktown metrics [TICKERS... | --spy]`. Verified: beta of VOO/IVV vs SPY ≈ 1.00.
 
-**Unit tests: metric layer covered.** 27 behavioural tests, `uv run pytest`, ~0.3s. Mutation-checked: 16 deliberately injected bugs each fail at least one test.
+**Tests:** 74 backend (pytest, ~0.7s) + 53 frontend (Vitest), behavioural and mutation-checked.
 
 **Tooling: uv.** `uv sync` to set up, `uv run …` to run, `uv add [--dev] <pkg>` for dependencies. `uv.lock` pins versions and is committed. Dev dependencies live in `[dependency-groups] dev` in `pyproject.toml`.
 
-**REST API (Phase A): complete.** `uv run uvicorn stocktown.main:app --reload`. `GET /universes/spy` (all positions + sectors + all metrics, one payload), `GET /metrics`, `GET /instruments/{ticker}` (Finnhub popup data). In-memory `SnapshotService` (built at startup ~8s, rebuilt once per New York day, prices up to *yesterday* in New York so a partial session never enters the city; any build failure serves the previous snapshot, and failures back off 5 min before retrying) stands in for persistence.
+**REST API (Phase A): complete.** `uv run uvicorn stocktown.main:app --reload`. `GET /universes/spy` (all positions + sectors + all metrics, one payload), `GET /metrics`, `GET /instruments/{ticker}` (Finnhub popup data). In-memory `SnapshotService` (built at startup ~10s (varies with Alpaca), rebuilt once per New York day, prices up to *yesterday* in New York so a partial session never enters the city; any build failure serves the previous snapshot, and failures back off 5 min before retrying) stands in for persistence.
 
 **Sectors** come from the 11 Select Sector SPDR files (SPY's own sector column is empty) — 500/500 coverage.
 
-**Live popup stream (Phase B): complete.** `WS /live?ticker=` sends the latest bar immediately, then minute bars. `LiveBarHub` (`services/live.py`) shares Alpaca's ONE allowed WebSocket connection across all popups: ref-counted per-ticker subscriptions, lazy connect, idle disconnect after 60s, reconnect + resubscribe with backoff, bounded per-viewer queues (drop oldest). `AssetCatalogue` (`services/assets.py`) resolves any ticker spelling for both popup endpoints. Verified live against Alpaca and a real uvicorn server. 74 tests.
+**Live popup stream (Phase B): complete.** `WS /live?ticker=` sends the latest bar immediately, then minute bars. `LiveBarHub` (`services/live.py`) shares Alpaca's ONE allowed WebSocket connection across all popups: ref-counted per-ticker subscriptions, lazy connect, idle disconnect after 60s, reconnect + resubscribe with backoff, bounded per-viewer queues (drop oldest). `AssetCatalogue` (`services/assets.py`) resolves any ticker spelling for both popup endpoints. Verified live against Alpaca and a real uvicorn server.
 
-**Frontend: in progress** — Vue 3 + TypeScript + Vite in `frontend/`, following `FrontendPlan.md` (phased plan + global decisions; read it before frontend work). Phase 0 (scaffold, Tailwind, shadcn-vue, CI), Phase 1 (typed API client, live message parser), Phase 2 (stores, live-bar composable) and Phase 3 (routes, layout shell, formatters) done.
+**Frontend: in progress** — Vue 3 + TypeScript + Vite in `frontend/`, following `FrontendPlan.md` (phased plan + global decisions; read it before frontend work). Phase 0 (scaffold, Tailwind, shadcn-vue, CI), Phase 1 (typed API client, live message parser), Phase 2 (stores, live-bar composable) Phase 3 (routes, layout shell, formatters) and Phase 4 (list view) done. Next: backend follow-ups, then Phase 5 (drawer).
 
 **Not yet built:** DB persistence (deliberately after the frontend).
 
@@ -50,10 +50,10 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 - **Ticker normalisation via strip-and-uppercase.** Works because SPY and Alpaca share-class punctuation is the only variation. Currently 100% resolution on the S&P 500. Alpaca `/v2/assets` is the source of truth for canonical symbols.
 - **Credentials are masked in `__repr__`.** `AlpacaCredentials`/`FinnhubCredentials` override `__repr__` to print `***`. Prevents accidental leaks via `print()`, logging, or debuggers. `.env` is gitignored.
 - **No premature abstractions.** No `PriceProvider`/`ReferenceProvider` `Protocol` interfaces yet — we have exactly one implementation of each. Added when a second implementation arrives (Phase 3, European provider). Same reasoning for custom exceptions and the DB layer.
-- **Concurrent fetching, capped at 4.** Alpaca bar batches and the 11 SSGA sector workbooks are independent requests, so they're fetched side by side via `ThreadPoolExecutor` (`MAX_CONCURRENT_BATCHES`, `MAX_CONCURRENT_DOWNLOADS`): cold snapshot build ~30s → ~8s, identical data, same request count (Alpaca free tier: 200/min). A stored snapshot (persistence phase) will remove the cold build entirely.
+- **Concurrent fetching, capped at 4.** Alpaca bar batches and the 11 SSGA sector workbooks are independent requests, so they're fetched side by side via `ThreadPoolExecutor` (`MAX_CONCURRENT_BATCHES`, `MAX_CONCURRENT_DOWNLOADS`): cold snapshot build ~30s → ~10s, identical data, same request count (Alpaca free tier: 200/min). A stored snapshot (persistence phase) will remove the cold build entirely.
 - **Finnhub rate-limited via `time.sleep(1.1)` between calls.** Naïve but sufficient now that Finnhub is only called per clicked stock. Not extracted to a shared rate-limiter until a second rate-limited API needs one.
 - **Two frontend views, one state.** A Three.js city and a sortable/filterable list, both rendering the same state: two Pinia stores (universe, fundamentals) and a live-bar composable, plus the URL (sort, filters, metric picks, selected ticker). Filters are shared (list filter dims/hides buildings); sort is list-only. Both open the same popup. Rows never stream — realtime stays popup-only. List is built first: quicker, and it verifies the data path and the numbers the city renders.
-- **Vue 3, not React or Angular.** User knows Angular and doesn't want it; Vue's templates and `ref`/`computed` map closely to Angular, and `watch()` fits imperative Three.js updates better than React's re-render model. Three.js is plain imperative code in one component (no TresJS/R3F-style wrapper). Table: TanStack Table (Vue adapter).
+- **Vue 3, not React or Angular.** User knows Angular and doesn't want it; Vue's templates and `ref`/`computed` map closely to Angular, and `watch()` fits imperative Three.js updates better than React's re-render model. Three.js is plain imperative code in one component (no TresJS/R3F-style wrapper). Table: TanStack Table v9 — sorting and rendering; filtering is our own shared pure function.
 - **CLI structure**: `python -m stocktown <command>` with argparse subcommands (`holdings`, `bars`, `fundamentals`, `stream`, `verify`, `metrics`, `openapi`). Each subcommand has a matching `preview_*` function in `cli/commands.py`. Keep new commands consistent with this shape. Business logic the API will also need (e.g. `load_spy_tickers`) lives in `services/`, not the CLI.
 
 ## Metric layer decisions
@@ -78,6 +78,7 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 - **Verify value by mutation.** When adding tests, inject the bugs they claim to catch and confirm they fail. (Found one weak test this way: periodic synthetic returns hid a date-misalignment bug — test data now uses seeded irregular returns.)
 - **pytest config:** `--import-mode=importlib`, `pythonpath = ["."]` — no `__init__.py` needed in `tests/`. `pytest-timeout` (10s) so a hanging test fails instead of blocking. Async tests: `@pytest.mark.anyio` (backend fixed to asyncio in `tests/conftest.py`).
 - **`TestClient` ≠ uvicorn for WebSockets.** It cancels handlers when the client leaves (uvicorn doesn't — handlers must detect disconnect themselves) and reports close codes sent before `accept()` (uvicorn turns those into HTTP 403). WebSocket work is only "done" after a check against a real server with a real client.
+- **Frontend:** Vitest + Testing Library. Fakes via `fakeApi`/`piniaWith` (`src/__tests__/fakeApi.ts`) and injected seams (`createApi({ fetch })`, `useLiveBar(ticker, openSocket)`, `createAppRouter(memoryHistory)`). Fakes behave like the real thing (the `FakeSocket` fires `onclose` after `close()`, which is what caught a bug). `flushPromises()` after navigation. UI is finally confirmed by the user in their own browser.
 - **Fakes must actually exercise the failure path.** Twice a test passed against the bug it was named for because the fake never produced the condition (every ticker had bars; periodic returns hid misalignment). The mutation check is what caught both.
 
 ## Working preferences (learned from prior sessions — follow these)
@@ -100,7 +101,7 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 
 ## What's next (in order)
 
-1. **Frontend** (user priority: a somewhat-functioning frontend before persistence): Vue 3 + TypeScript + Vite + Pinia. First the list view (columns from `GET /metrics`, sort, filters, click-through popup with `/instruments` + `WS /live`), then the Three.js treemap city (d3-hierarchy, districts by sector, metric dropdowns) on the same store. Later from the list: column picker, CSV export, portfolio columns, select rows → highlight in city.
+1. **Frontend** (user priority: a somewhat-functioning frontend before persistence): continue `FrontendPlan.md` at the backend follow-ups, then Phase 5 (drawer), then Phase 6 (city). Later from the list: column picker, CSV export, portfolio columns, select rows → highlight in city.
 2. **Persistence** (`persistence/`): SQLite for MVP. Replaces the in-memory snapshot; daily bars for lookback; historical minute bars (REST, after the close) for replay; metric values cached **per ticker**.
 3. **Provider parser tests** (optional, small): `extract_pe_ratio`, SPY workbook parsing, `normalise_ticker`.
 

@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/vue'
-import { afterEach, describe, expect, it } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/vue'
+import { describe, expect, it } from 'vitest'
 
 import FilterBar from '../FilterBar.vue'
 
@@ -12,8 +12,6 @@ function renderFilterBar(props: { sectors?: string[]; search?: string } = {}) {
 }
 
 describe('FilterBar', () => {
-  afterEach(cleanup)
-
   it('offers every sector and marks the chosen ones', () => {
     renderFilterBar({ sectors: ['Technology'] })
 

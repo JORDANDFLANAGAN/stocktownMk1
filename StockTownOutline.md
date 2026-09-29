@@ -23,7 +23,7 @@ The MVP is the S&P 500 as a 3D city built from a daily snapshot, with a selectab
 - Daily metric snapshot for all \~500 tickers, computed before the US open.
 - Treemap layout: sectors as districts, companies as buildings.
 - Height and colour dropdowns over a fixed metric catalogue, with animated transitions.
-- List view: one row per position with weight and every metric; sort by any column; filters (sector, search, metric ranges) shared with the city.
+- List view: one row per position with weight and every metric; sort by any column; filters (sector, search) shared with the city.
 - Hover tooltip: name, ticker, weight, latest close, day change and the selected metrics (all from the snapshot, no API calls).
 - Click-through detail popup (from a building or a list row): fundamentals (Finnhub, fetched on click) and a live minute-bar price stream (Alpaca WebSocket) while it is open.
 - Replay mode ("yesterday in 60 seconds"), built from Alpaca historical minute bars fetched after the session, not from a live recording. Approach to be confirmed.
@@ -92,7 +92,7 @@ City metrics are **price-only**: all seven come from one batched Alpaca daily-ba
 
 ## Data sources
 
-The MVP runs on three free sources: the SPY holdings file for the index, Alpaca for prices (and every city metric), and Finnhub for fundamentals in the click-through popup. Each sits behind a provider interface so it can be swapped.
+The MVP runs on three free sources: the SPY holdings file for the index, Alpaca for prices (and every city metric), and Finnhub for fundamentals in the click-through popup. Each lives in its own provider module; an interface is added when a second provider arrives.
 
 | Need | Source | Free-tier limits | Phase |
 | --- | --- | --- | --- |
@@ -197,17 +197,17 @@ flowchart LR
 | Database | SQLite (MVP) → Postgres + TimescaleDB | Zero setup now, time-series later |
 | ORM / migrations | SQLAlchemy 2 + Alembic | Standard, works with both databases |
 | Frontend framework | Vue 3 (Composition API) | Two views sharing state plus a table and a popup; closest to Angular, `watch()` suits an imperative Three.js scene |
-| Frontend state | Pinia | One store for universe, metrics, filters and selection |
+| Frontend state | Pinia + URL | Universe and fundamentals stores; filters, metric picks and selection live in the URL |
 | Frontend build | Vite + TypeScript | Fast dev server, typed API payloads |
-| Table | TanStack Table (Vue adapter) | Headless sorting and filtering |
-| 3D | Three.js with InstancedMesh, OrbitControls | 500 buildings in one draw call |
+| Table | TanStack Table v9 | Headless sorting; filtering is our own shared function |
+| 3D | Three.js with InstancedMesh, MapControls | 500 buildings in one draw call |
 | Layout | d3-hierarchy (squarified treemap) | Districts and footprints without custom packing |
 | Later layout | d3-force or networkx spring layout | Correlation roads and clusters |
 | UI overlay | Vue components; lil-gui while developing | Dropdowns, slider, tooltip, popup |
 | Animation | Tween between old and new values per frame | Smooth metric switches |
 | Containers | Docker + docker-compose | Same setup locally and deployed |
-| Hosting | Fly.io or Railway (backend), Cloudflare Pages (frontend) | Cheap, one public link |
-| CI | GitHub Actions: ruff, mypy, pytest, frontend build | Keeps the project shippable |
+| Hosting | Fly.io or Railway (backend), Cloudflare Pages (frontend) — TBD at deployment: FastAPI serving the frontend same-origin is also an option; the API is under `/api` either way | Cheap, one public link |
+| CI | GitHub Actions: pytest; frontend schema drift, lint, Prettier, tests, build (ruff/mypy still to add) | Keeps the project shippable |
 | Secrets | Environment variables, `.env` locally | API keys never in the repo |
 
 ## US and non-US coverage

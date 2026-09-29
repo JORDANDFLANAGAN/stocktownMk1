@@ -36,6 +36,8 @@ export function useQueryFilters() {
   return { sectors, search }
 }
 
+// Starts from the query at call time: two setters called in the same tick would each start from
+// the old query, so only the last change would survive. Batch them if that's ever needed.
 function useReplaceQuery() {
   const route = useRoute()
   const router = useRouter()

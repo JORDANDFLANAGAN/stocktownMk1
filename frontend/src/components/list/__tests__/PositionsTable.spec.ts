@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/vue'
 import type { SortingState } from '@tanstack/vue-table'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import type { MetricInfo } from '@/api/client'
 import { TEST_PORTFOLIO } from '@/__tests__/fixtures'
@@ -24,8 +24,6 @@ function tickersInOrder(): string[] {
 }
 
 describe('PositionsTable', () => {
-  afterEach(cleanup)
-
   it('has the fixed columns, then one column per metric in catalogue order', () => {
     renderTable()
 

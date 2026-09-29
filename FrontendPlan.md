@@ -1,60 +1,45 @@
 # Frontend Implementation Plan
 
-Ordered plan for the Vue 3 + Three.js frontend. Derived from the design grill in
-the September 2026 session; assumes every decision in this document is settled
-unless flagged as "TBD".
+Phased plan for the Vue 3 + Three.js frontend. Phases 0–4 are done and
+summarised as they now stand; Phases 5–7 are the remaining work.
 
-Companion docs: `StockTownOutline.md` (product/architecture), `CLAUDE.md`
-(session context and working preferences), `README.md` (setup + CLI).
+Companion docs: `CLAUDE.md` (session context, working preferences — wins if
+anything here disagrees), `README.md` (setup, commands), `StockTownOutline.md`
+(product vision).
 
 ## How to use this document
 
-- Phases are sequenced so every phase is independently reviewable, mergeable,
-  and testable. No phase depends on later work compiling.
-- Each phase lists **prerequisites** (what must be true before starting),
-  **deliverables** (what changes when it's done), **done-when** (the objective
-  bar), and **checkpoints** (natural "wait for review" pauses inside the phase).
-- The user reviews all code before it is written. Every code-producing
-  checkpoint is a hand-off: proposed code goes in chat, explicit approval before
-  `Write`/`Edit`.
+- Each remaining phase lists **prerequisites**, **deliverables**, **tests**,
+  **done-when** and **checkpoints** (review pauses).
+- Every code-producing checkpoint: prototype in scratch, mutation-check the
+  tests, present the code in chat, write only after explicit approval. UI is
+  confirmed by the user in their own browser against a short checklist.
+- When a phase finishes, collapse it into a short "done" summary below —
+  keep what exists and why, drop the history.
 
-## Global decisions carried into every phase
-
-Full reasoning lives in the grill transcript; this is a reference card.
+## Global decisions
 
 | Area | Decision |
 |---|---|
-| Location | `frontend/` at repo root |
-| Scaffold | `create-vue` with TypeScript, Router, Pinia, Vitest, ESLint, Prettier (no JSX, no E2E yet) |
-| Package manager | npm |
-| TypeScript | `strict: true` + `noUncheckedIndexedAccess: true` |
-| Linter/formatter | ESLint + Prettier (create-vue defaults) |
-| Folder shape | Type-based: `api/`, `components/`, `composables/`, `lib/` (helpers: shadcn `cn`, formatters), `stores/`, `types/`, `views/`, `router/` |
-| HTTP client | `openapi-fetch` |
-| Types (HTTP) | Generated from `/openapi.json` via `openapi-typescript` → `src/api/schema.d.ts` |
-| Types (WS) | Hand-written discriminated union in `src/api/live.ts` (OpenAPI doesn't cover WS) |
-| Popup | Nested route (`/:universeId/list/ticker/:ticker`, `/:universeId/city/ticker/:ticker`), right-side drawer |
-| URL state | View, ticker, sort, filters, metric picks — all live in URL |
-| Styling | Tailwind CSS + shadcn-vue |
-| Theme | Zinc neutral + teal primary (avoids RdBu and plasma's purple end); Inter self-hosted via `@fontsource-variable/inter` |
-| Dev integration | Vite proxy to FastAPI |
-| API paths | Everything under `/api` (REST + `WS /api/live`); page routes own the rest; plan text omits the prefix |
-| Pinia | Two Setup Stores: `useUniverseStore`, `useFundamentalsStore`; the live feed is a composable owned by the drawer |
-| WS consumption | `useLiveBar(ticker)` composable + 3-try exponential-backoff reconnect |
-| Testing | Vitest + `@testing-library/vue`; behavioural names; inject fakes; mutation-verify |
-| CI | GitHub Actions — one workflow, backend job + frontend job |
-| Prod serving | Deferred until deployment. Likely FastAPI serving `frontend/dist` (same-origin), with a fallback to `index.html` for deep links |
-| List | All columns visible; TanStack Table v9 for sorting + rendering; filtering is a shared pure function (`filterPositions`, also used by the city); single-column sort; virtual scrolling only when a real portfolio needs it; no pagination (grouping by asset class via v9 later) |
-| List filters | Sector multi-select chips + ticker/name substring; no metric range filters |
-| URL params | `?sort=-beta_1y&sector=Technology&sector=Financials&q=aapl&height=one_year_return&color=day_change` (repeated `sector=` params) |
-| Popup layout | Right-side drawer, stacked sections (header / metrics / fundamentals / live) |
-| Loading UX | `<Suspense>` for boot; manual `{loading, error, data}` refs per store thereafter |
-| Formatting | `src/lib/format.ts`, `Intl.NumberFormat('en-US', …)`, driven by `metric.unit` |
-| City layout | Meta-treemap of treemaps (sector districts → holdings) with padding for streets |
-| City rendering | Single `InstancedMesh` of `BoxGeometry(1,1,1)`, per-instance matrix + colour |
-| City camera | `MapControls`, perspective @ ~45°, polar clamp `[15°, 75°]` |
-| City palettes | Plasma (sequential), RdBu clipped `[0.1, 0.9]` (diverging, driven by new `signed` flag) |
-| City hover/select | Coloured outline + 1.05× scale; selected uses thicker outline in accent |
+| Location / tooling | `frontend/`, `create-vue` (TypeScript, Router, Pinia, Vitest, ESLint + Oxlint, Prettier), npm, Node 22.22+/24.15+/26 |
+| TypeScript | `strict` + `noUncheckedIndexedAccess` |
+| Folder shape | `api/` (client, generated schema, WS types), `components/`, `composables/` (`use*` functions that use Vue reactivity or inject), `lib/` (pure functions: formatters, filtering, city maths, shadcn `cn`), `stores/`, `views/`, `router/`. Types live next to the function that uses them |
+| API paths | Everything under `/api` (REST + `WS /api/live`); page routes own the rest. Plan text omits the prefix |
+| HTTP | `openapi-fetch` behind a small `Api` interface (`src/api/client.ts`); types generated from the backend by `npm run gen:api`; CI fails if they drift |
+| WS | Hand-written `LiveBar` type + `parseLiveMessage` (`src/api/live.ts`) |
+| DI | `app.provide(API_KEY, createApi())`; stores call `useApi()`. Tests provide fakes |
+| State | Pinia: `useUniverseStore`, `useFundamentalsStore`. Live feed: `useLiveBar` composable owned by the drawer. Everything shareable (view, ticker, sort, filters, metric picks) lives in the URL |
+| URL | `/:universeId/list[/ticker/:ticker]`, `/:universeId/city[/ticker/:ticker]`; query `?sort=-beta_1y&sector=Technology&sector=Financials&q=aapl&height=one_year_return&color=day_change` |
+| Loading UX | Layout watches the URL's universe id and calls `store.load`; skeleton + "Building today's snapshot…" while loading; per-store `{loading, error}` thereafter. No `<Suspense>` (experimental) |
+| List | TanStack Table v9 for sorting + rendering; filtering is the shared pure `filterPositions`; single-column sort; no pagination; virtual scrolling only if a real portfolio needs it; grouping by asset class via v9 later |
+| List filters | Sector chips + ticker/name search; no metric range filters |
+| Styling | Tailwind v4 + shadcn-vue (`vega`, zinc neutral, teal primary, self-hosted Inter). Plain Tailwind markup until a shadcn component earns its place (e.g. the drawer's Sheet) |
+| Formatting | `src/lib/format.ts` (`Intl.NumberFormat('en-US')`, typographic minus), driven by `metric.unit` |
+| Popup | Right-side drawer, nested child route of each view; sections: header / city metrics / fundamentals / live |
+| City | Treemap of treemaps (sector districts → holdings, padding = streets); one `InstancedMesh` of unit boxes; `MapControls`, polar clamp `[15°, 75°]`; palettes plasma (sequential) and RdBu clipped `[0.1, 0.9]` (diverging, from the `signed` flag); hover/select outline. Route lazy-loaded so list-only visits never download Three.js |
+| Testing | Vitest + Testing Library; behavioural names; fakes injected, no `vi.mock`; every test mutation-verified; non-SPY fixture (`TEST_PORTFOLIO`) |
+| CI | One workflow: backend (uv, pytest) + frontend (schema drift, lint, Prettier, tests, build) |
+| Prod serving | Deferred until deployment; likely FastAPI serving `frontend/dist` same-origin with an `index.html` fallback for deep links |
 
 ## Universe-agnostic by design
 
@@ -63,563 +48,206 @@ never assumes it is the S&P 500. Adding an index fund = one backend
 `UNIVERSES` entry, no UI change. Portfolio import later = another source of
 the same shape.
 
-Rules (cheap now, expensive to retrofit):
+- The universe id lives in the URL; the only `"spy"` literal is
+  `DEFAULT_UNIVERSE_ID` in `src/router/index.ts`.
+- Titles and dates come from the payload (`name`, `session_date`).
+- Sectors are derived from the payload; `sector: null` → "Unclassified".
+- Nothing assumes equities: `asset_class` is displayed, not assumed; missing
+  popup data shows "unavailable".
+- Columns and metric pickers come from `GET /metrics`.
+- Tests use `TEST_PORTFOLIO` (an unclassified position, a non-equity one), so
+  a hidden SPY assumption fails a test.
 
-- **Universe id lives in the URL:** `/:universeId/list`, `/:universeId/city`,
-  `/:universeId/list/ticker/:ticker`. `/` redirects to the default. The only
-  `"spy"` literal in the frontend is `DEFAULT_UNIVERSE_ID` in one constants file.
-- **Store takes the id:** `load(universeId)`. Page title and date come from the
-  payload's `name` and `session_date`, never hard-coded text.
-- **Nothing counts sectors or assumes they exist:** districts, filter chips and
-  legends derive from the distinct sectors in the payload; `sector: null`
-  groups under "Unclassified".
-- **Nothing assumes equities:** `asset_class` is displayed, not assumed; popup
-  sections whose data is missing (e.g. no fundamentals for an ETF) show
-  "unavailable" rather than breaking.
-- **Columns and metric pickers come from `GET /metrics`** (already the case).
-- **Tests use a small non-SPY fixture:** e.g. a 3-position "Test Portfolio"
-  with one `sector: null` and one non-equity position, so any hidden SPY
-  assumption fails a test.
+Not built until a second universe exists: a universe picker +
+`GET /universes`; protection against two universe loads racing; keeping the
+current universe on screen when a *reload* fails (the store already does,
+the layout still swaps in the error page). Portfolio import needs a backend
+endpoint that computes metrics for an arbitrary ticker list.
 
-Deliberately *not* built yet (no second universe to justify them):
-- A universe picker and `GET /universes` list endpoint. Added with the second
-  universe; the picker is then one dropdown bound to the route param.
-- Portfolio import. Needs a backend endpoint that computes metrics for an
-  arbitrary ticker list (the metric layer is already per-ticker).
+## Backend follow-ups — before Phase 5
 
-## Backend follow-ups (small; queued alongside frontend work)
+The drawer needs all three; they land as small separate commits, then
+`npm run gen:api`.
 
-- **Add `signed: bool` to `Metric` class** and to `MetricInfoResponse` in
-  `stocktown/api/schemas.py`. Populate per metric (`day_change`,
-  `one_year_return` → `True`; others → `False`). Regenerate frontend types
-  afterwards (`npm run gen:api`).
-- **Confirm Finnhub dividend-yield unit** (fraction vs percent) when wiring the
-  popup fundamentals section. Update `src/lib/format.ts` usage accordingly.
-- **Make `unit`, `scale`, `refresh` `Literal` types** in
-  `MetricInfoResponse`, so the generated TypeScript gets `'percent' | 'ratio'`
-  instead of `string` (lets `formatByUnit` take the schema type directly).
-- **Add `last_close` to `PositionResponse`** — the drawer's live day change
-  needs the previous close, and the payload currently carries no price.
-  Lands in the same `gen:api` regeneration as `signed`.
+- **`last_close` on `PositionResponse`** — the drawer's live day change needs
+  the previous close; the payload carries no price today.
+- **`Literal` types for `unit`, `scale`, `refresh`** in `MetricInfoResponse`,
+  so the generated TypeScript is `'percent' | 'ratio'` rather than `string`.
+- **`signed: bool` on `Metric` / `MetricInfoResponse`** (`day_change`,
+  `one_year_return` → `True`) — drives the diverging palette in Phase 6 and
+  the "+" sign on returns in the drawer.
 
-All land as separate small commits before Phase 6.
+Also before the fundamentals section: **confirm Finnhub's dividend-yield
+unit** (fraction vs percent).
 
 ---
 
-## Phase 0 — Scaffolding & CI foundation
+## Done: Phases 0–4
 
-Goal: an empty-but-configured `frontend/` that boots to a blank page, plus CI
-running both backend and frontend on every push.
+**Phase 0 — Scaffold and CI.** `create-vue` app; Tailwind v4 via
+`@tailwindcss/vite` (theme in `src/assets/main.css`); shadcn-vue initialised
+(`components.json`, `src/lib/utils.ts`; `slate` no longer exists and `mist`
+breaks the build, hence `zinc`); Vite proxies `/api` (HTTP + WS) to `:8000`.
+`openapi-typescript` 7.13 declares a TypeScript 5 peer; `package.json`
+`overrides` points it at our TS 6 (verified; `skipLibCheck` means the schema
+is checked only through `client.ts`) — remove once upstream supports TS 6.
+Dependencies for later phases are pre-installed (`three`, `d3-*`).
 
-**Prerequisites:** none.
+**Phase 1 — Contract.** `python -m stocktown openapi | openapi-typescript`
+(`npm run gen:api`, no server needed); `schema.d.ts` committed and
+Prettier-ignored. `createApi({ baseUrl, fetch })` → `Api`; errors throw
+`ApiError { status, retryAfterSeconds }`; a dead network rejects with
+`TypeError`. `parseLiveMessage` fails loud on unknown message types.
 
-**Deliverables:**
+**Phase 2 — Stores and live feed.** `useUniverseStore.load(universeId)`
+(universe + catalogue in parallel; a failed reload keeps the data).
+`useFundamentalsStore` — command `load(ticker)` (once per ticker, in-flight
+de-duplicated, failures retried) and query `entryFor(ticker)`, split so
+nothing fetches inside a `computed`. `useLiveBar(ticker, openSocket?)` →
+`{ bar, status }`: follows ticker changes, closes on unmount, `4404`/`4503`
+reported without retry, other drops retried after 1s/2s/4s.
 
-- `frontend/` directory with `create-vue` output (TypeScript, Router, Pinia,
-  Vitest, ESLint, Prettier; no JSX, no E2E)
-- `frontend/tsconfig.json` sets `strict: true` and `noUncheckedIndexedAccess: true`
-- `frontend/vite.config.ts` proxies `/api` (HTTP + WebSocket) to
-  `http://localhost:8000`
-- Tailwind CSS v4 installed (`tailwindcss`, `@tailwindcss/vite`) as a Vite
-  plugin — no `postcss`/`autoprefixer`/`tailwind.config.js`; the theme
-  (`zinc` neutral + teal primary) lives in `src/assets/main.css`
-- shadcn-vue 2.8 initialised via its CLI (`--base reka --style vega
-  --icon-library lucide -b zinc`); components land in `src/components/ui/`
-  under our own source control. `slate` no longer exists and `mist` emits no
-  CSS variables (build fails), hence `zinc`. The Google Fonts `@import` it
-  writes is replaced by the self-hosted font.
-- Dependencies added:
-  - `openapi-fetch`, `openapi-typescript` (dev). `openapi-typescript` 7.13
-    declares `typescript@^5` as a peer; `package.json` `overrides` points it
-    at the project's TypeScript 6 (verified: generated schema passes
-    `tsc --strict`). Remove the override once upstream supports TS 6. (`skipLibCheck` is on, so the schema file itself is only checked through `client.ts` using its types.)
-  - `@tanstack/vue-table`, `@tanstack/vue-virtual`
-  - `d3-hierarchy`, `d3-scale`, `d3-scale-chromatic` (+ their `@types/*`)
-  - `three`, `@types/three`
-  - `@testing-library/vue` (dev)
-- `frontend/package.json` scripts: `dev`, `build`, `preview`, `type-check`,
-  `lint`, `test`, `gen:api` (regenerates `src/api/schema.d.ts` from the
-  backend schema via `python -m stocktown openapi`; no server needed)
-- `.github/workflows/ci.yml` with two jobs:
-  - **backend**: `uv sync`, `uv run pytest`
-  - **frontend**: `npm ci`, `npm run lint && git diff --exit-code` (lint
-    auto-fixes, so fail if it changed anything), `npm run test`,
-    `npm run build` (includes type-check)
-  - The schema drift check (`gen:api` + `git diff`) moves to Phase 1, once
-    `schema.d.ts` exists
-- ~~`stocktown/main.py` static mount~~ — deferred until deployment (dev uses
-  the Vite server; see "Prod serving")
-- `README.md` gets a `## Frontend` section: install, dev, build steps
-- `.gitignore`: no change needed — create-vue's `frontend/.gitignore` covers
-  `node_modules`, `dist`, `coverage`
+**Phase 3 — Routes and shell.** `createAppRouter(history)`; drawer as a
+nested child route (`props: true`) so the view stays mounted underneath;
+`UniverseLayout` loads the universe named in the URL and shows loading /
+not-found / retry; List/City links carry the query. `format.ts`:
+`formatPercent`, `formatRatio`, `formatMetricValue`.
 
-**Done when:**
+**Phase 4 — List.** `filterPositions` / `sectorsIn` (`lib/positions.ts`);
+`useQuerySort` / `useQueryFilters` keep state in the URL via
+`router.replace` (two setters in the same tick would lose the first — batch
+them if a "reset all" control is ever added); `PositionsTable` (props in,
+events out; one column per catalogue metric; missing values sort last);
+`FilterBar` (the input keeps its own text so keystrokes aren't lost while
+the URL updates).
 
-- `npm run dev` inside `frontend/` serves the create-vue default page at
-  `http://localhost:5173`
-- `npm run type-check`, `npm run lint`, `npm run test` all pass on the empty
-  project
-- `npm run gen:api` writes `src/api/schema.d.ts`
-- A push triggers CI; both jobs go green
-
-**Checkpoints (review pauses):**
-
-1. Full list of `npm install` commands + final `package.json` — before install
-2. `tsconfig.json`, `vite.config.ts`, Tailwind CSS setup, shadcn `components.json`
-3. `ci.yml` (both jobs)
-4. Post-run: verify the "done when" checks
-
----
-
-## Phase 1 — Contract wire-up
-
-Goal: a typed HTTP client and typed WS message layer, ready to be consumed by
-stores. No UI yet.
-
-**Prerequisites:** Phase 0 complete. No running backend needed.
-
-**Deliverables:**
-
-- `python -m stocktown openapi` — prints the schema straight from the app;
-  `npm run gen:api` pipes it into `openapi-typescript`
-- `src/api/schema.d.ts` — generated, committed, excluded from Prettier
-  (`.prettierignore`)
-- CI: schema drift check — `npm run gen:api && git diff --exit-code
-  src/api/schema.d.ts` (frontend job installs `uv` for this)
-- `src/api/client.ts` — `Api` interface (`fetchUniverse`, `fetchMetrics`,
-  `fetchInstrument`) + `createApi({ baseUrl, fetch })` built on
-  `openapi-fetch`. Stores depend on `Api`, so tests pass a plain fake.
-  Errors throw `ApiError { status, retryAfterSeconds }`. Base URL blank
-  (relative paths, dev proxy handles it).
-- `src/api/live.ts` — hand-written WS message types:
-  ```ts
-  export interface LiveBar {
-    type: 'bar'; ticker: string; minute_utc: string
-    open: number; high: number; low: number; close: number; volume: number
-  }
-  export type LiveMessage = LiveBar // future: | LiveStatus
-  ```
-  Plus `parseLiveMessage(raw: string): LiveMessage` — trusts our server for
-  the fields, throws on unknown `type` (fail loud).
-- `src/__tests__/fixtures.ts` — `TEST_PORTFOLIO`, the non-SPY fixture (see
-  "Universe-agnostic by design")
-- create-vue example code removed; `App.vue` is a bare `<RouterView />`
-- `src/types/` (`SortSpec`, `FilterSpec`, `MetricSelection`) moved to Phase 3,
-  next to their first consumer
-
-**Done when:**
-
-- `client.spec.ts` and `live.spec.ts` pass and are mutation-verified
-- `npm run gen:api` leaves `schema.d.ts` unchanged
-- No runtime code depends on `any`
-
-**Checkpoints:**
-
-1. `client.ts`, `live.ts`, tests and the `gen:api` pipeline — one proposal,
-   prototyped in scratch first
-
----
-
-## Phase 2 — Stores & the live composable
-
-Goal: all data-fetching primitives in place, unit-tested, no UI consumers yet.
-
-**Prerequisites:** Phase 1 complete.
-
-**Deliverables:**
-
-- `src/composables/useApi.ts` — `API_KEY` + `useApi()`. `main.ts` does
-  `app.provide(API_KEY, createApi())`; stores call `useApi()` (Vue's
-  provide/inject — Spring-style DI). Tests use `piniaWith(fakeApi({...}))`
-  from `src/__tests__/fakeApi.ts`.
-- `src/stores/universe.ts` — `useUniverseStore` (Setup Store). Exposes
-  `universe`, `positions`, `metricsCatalogue` (from `/metrics`), plus
-  `{loading, error}`. Method: `load(universeId)` fetches
-  `/universes/{universeId}` and `/metrics` in parallel; a failed reload keeps
-  the universe already on screen. (`sectors` moved to Phase 4, next to the
-  filter bar that first uses it.)
-- `src/stores/fundamentals.ts` — `useFundamentalsStore`. Per-ticker cache.
-  Command `load(ticker)` (fetches once; in flight → no-op; failed → retries)
-  and query `entryFor(ticker)` → `{loading, error, data}`. Split so nothing
-  fetches inside a `computed`.
-- `src/composables/useLiveBar.ts` — `useLiveBar(ticker, openSocket?)` returns
-  `{ bar, status }`. No store and no wrapper file: the drawer is the only
-  consumer, and `openSocket` (default `new WebSocket(url)`) is the test seam.
-  Follows ticker changes (closes the old socket, clears the old bar); closes
-  on unmount (`onScopeDispose`). Close `4404` → `unknown-ticker`, `4503` →
-  `unavailable`, neither retried. Other drops retried after `1s → 2s → 4s`,
-  then `disconnected`; a message resets the retries.
-
-**Tests (mirror backend rules):**
-
-- `universe.spec.ts` — loads the requested universe + catalogue; loading flag;
-  failed reload reports the error and keeps the universe on screen.
-- `fundamentals.spec.ts` — fetched once then cached (incl. double click);
-  per-ticker error isolation; failed ticker retried.
-- `useLiveBar.spec.ts` — `FakeSocket` that behaves like the browser (fires
-  `onclose` after `close()`); bar arrival; ticker switch; popup close during a
-  retry wait; exact backoff timing (fake timers); retry reset; `4404`/`4503`.
-
-Behavioural test names. Hand-built payloads via `src/__tests__/fixtures.ts` (mirror
-backend's `tests/factories.py`). No `vi.mock`; inject fakes as constructor
-args.
-
-**Done when:**
-
-- All store + composable tests pass with `npm run test`
-- Coverage for each store's public methods (not for coverage's sake — every
-  test must be able to catch a plausible bug; mutation-verify the reconnect
-  logic and the cache hit)
-- `type-check` passes
-
-**Checkpoints:**
-
-1. `useApi.ts`, `universe.ts`, `fundamentals.ts` + their tests — done
-2. `useLiveBar.ts` + its tests — done
-3. Mutation verification — done (stores: 10 bugs caught; `useLiveBar`: 14)
-
----
-
-## Phase 3 — Routing, shell, formatters
-
-Goal: the app boots into a working shell with routing, a drawer slot, and
-number formatting — but the list is still a placeholder.
-
-**Prerequisites:** Phase 2 complete.
-
-**Deliverables:**
-
-- `src/router/index.ts` — `createAppRouter(history)` (browser history in
-  `main.ts`, memory history in tests). `DEFAULT_UNIVERSE_ID` lives here.
-  - `/` → redirect to `/spy/list`
-  - `/:universeId` → `UniverseLayout`, children:
-    - `list` (name `list`, `ListView`) → child `ticker/:ticker` (name
-      `list-ticker`, `TickerDrawer`, `props: true`)
-    - `city` (name `city`, `CityView`) → child `ticker/:ticker` (name
-      `city-ticker`, `TickerDrawer`, `props: true`)
-  - The drawer is a nested child route rendered by the view's own
-    `<RouterView />`, so the view stays mounted underneath it.
-- `src/views/UniverseLayout.vue` — header (universe name + "Prices as of",
-  List/City links that carry the query over), then "Loading…" / not-found /
-  "Couldn't load — Try again" / the view. Loads via
-  `watch(universeId, load, { immediate: true })` — no `<Suspense>` (still
-  experimental in Vue) and no `useBootFetch`.
-- `ListView.vue`, `CityView.vue`, `components/drawer/TickerDrawer.vue` —
-  placeholders until Phases 4–6.
-- `src/lib/format.ts` — `formatPercent(x, { digits, showPlus })`,
-  `formatRatio(x, digits)`, `formatMetricValue(value, unit)` (`"—"` for null).
-  Typographic minus (U+2212); a value that rounds to zero never gets a sign.
-- Moved to their first consumer: URL-sync composables + `src/types/` (sort,
-  filters → Phase 4; metric picks → Phase 6); `formatCompactMoney` → Phase 5.
-
-**Tests:** `src/__tests__/App.spec.ts` renders the whole app at a URL (real
-router, memory history, fake Api): root redirect, universe named in the URL
-loaded and used as the title, deep link to a ticker, query kept across views,
-unknown universe, retry after failure. `src/lib/__tests__/format.spec.ts`.
-Component specs call `afterEach(cleanup)` (Vitest globals are off).
-
-**Done when:** all of the above pass and are mutation-verified (16 bugs
-caught), and the manual browser checklist passes: root redirect + S&P 500
-header, City link keeps the query, deep link opens the drawer, unknown
-universe message, retry after restarting the backend.
-
----
-
-## Phase 4 — List view
-
-Goal: the working list, backed by the store, with sort/filter/URL sync and a
-row-click that opens a placeholder drawer route.
-
-**Prerequisites:** Phase 3 complete.
-
-**Deliverables:**
-
-- `src/lib/positions.ts` — `filterPositions(positions, { sectors, search })`
-  (shared with the city), `sectorsIn(positions)` (alphabetical, Unclassified
-  last), `sectorOf`, `UNCLASSIFIED`. Types live next to their functions (no
-  `src/types/`).
-- `src/composables/useQueryState.ts` — `useQuerySort()` (TanStack
-  `SortingState` ↔ `?sort=-beta_1y`) and `useQueryFilters()` (`sectors` ↔
-  repeated `?sector=`, `search` ↔ `?q=`). Setters `router.replace` and keep
-  other params.
-- `src/components/list/PositionsTable.vue` — TanStack Table v9 (`useTable`,
-  column helper, `rowSortingFeature`). Columns: ticker, name, sector, weight,
-  then one per catalogue metric (built once; the catalogue is loaded before
-  the list shows). Controlled sort via `v-model:sorting`; missing values sort
-  last either way; no sort removal. Emits `select(ticker)`; marks the selected
-  row (`aria-selected`). Numbers right-aligned with `tabular-nums`. No router
-  or store: props in, events out.
-- `src/components/list/FilterBar.vue` — search input (keeps its own text so
-  keystrokes aren't lost while the URL updates; no debounce needed) + sector
-  chips (`aria-pressed`). `v-model:sectors`, `v-model:search`.
-- `src/views/ListView.vue` — wires URL state → `filterPositions` → table,
-  "Showing N of M", row click → `list-ticker` route keeping the query.
-- Plain Tailwind markup; shadcn components only when one earns its place.
-
-**Tests:** `positions.spec.ts`, `useQueryState.spec.ts` (real router, memory
-history), `PositionsTable.spec.ts`, `FilterBar.spec.ts`, plus `App.spec.ts`
-cases for URL filters, header sort → URL, row click → drawer with query kept.
-Mutation-verified (Part A: 14 bugs, Part B: 19).
-
-**Done when:**
-
-- Browser: `/spy/list` shows all rows, sort works (missing values last),
-  chips and search filter, row click opens `/spy/list/ticker/AAPL` with the
-  query kept, refresh restores everything
-- Scrolling all ~500 rows feels smooth (if not, add `@tanstack/vue-virtual`)
-- Contract: the columns rendered exactly match `/metrics` output — if the
-  backend adds a metric, this table shows it without code changes
+Tests so far: 53 frontend (Vitest) + 74 backend, all mutation-verified.
+Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`),
+`src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`); component specs render
+with Testing Library and wait for navigation with `flushPromises`.
 
 ---
 
 ## Phase 5 — Popup (drawer)
 
-Goal: clicking a row opens a working drawer with live-updating price, city
-metrics, fundamentals, and OHLCV. Same drawer will serve the city view later.
+Goal: clicking a row opens a working drawer with live price, city metrics,
+fundamentals and the latest bar. The same drawer serves the city later.
 
-**Prerequisites:** Phase 4 complete.
+**Prerequisites:** Phase 4 done; the backend follow-ups above merged.
 
 **Deliverables:**
 
-- `src/components/drawer/TickerDrawer.vue` — shadcn Sheet, right side. Opens
-  when the current route has `:ticker`; closing pushes back to the parent
-  (`/:universeId/list` or `/:universeId/city`). Internal layout is a scrollable column of sections.
-  Calls `useLiveBar(ticker)` once and passes `bar`/`status` to
-  `DrawerHeader` and `LiveBarSection` as props (one WebSocket per drawer).
-- `src/components/drawer/DrawerHeader.vue` — ticker, name, sector, live price,
-  day change. Live price + day change from the `bar` prop. Day change
-  computed against the position's `last_close` from `useUniverseStore`
-  (already in memory once the `last_close` backend follow-up lands).
-- `src/components/drawer/CityMetricsSection.vue` — compact 2-column list of
-  every metric with its formatted value. Read from `useUniverseStore`.
-- `src/components/drawer/FundamentalsSection.vue` — P/E, market cap, dividend
-  yield. Uses `useFundamentalsStore()` (`load` on ticker change, `entryFor` to read). Skeleton while loading;
-  "unavailable — [retry]" on error.
-- `src/components/drawer/LiveBarSection.vue` — latest bar OHLCV + timestamp.
-  Takes `bar`/`status` props. Shows "connecting…" until first message;
-  "disconnected — retrying" on backoff; final "disconnected" after backoff
-  exhausted.
-- Status handling:
-  - WS 4404: replace drawer body with "ticker not found"
-  - WS 4503: amber pill "market data provider unavailable"
-  - Fundamentals 404: "no fundamentals for this ticker" (fine; not every ticker has them)
-  - Fundamentals 503 with `Retry-After`: parse header, retry once after that delay
-- Tests:
-  - `TickerDrawer.spec.ts` — mounts open with `:ticker`; closes → back-nav;
-    unknown-ticker path.
-  - `LiveBarSection.spec.ts` — plain props (no fake WebSocket needed); assert
-    render before/after first bar and for each status.
-  - `FundamentalsSection.spec.ts` — inject fake client; loading → data → error
-    paths.
+- `components/drawer/TickerDrawer.vue` — shadcn Sheet (focus trap, `Esc`),
+  right side; closing returns to the parent view with the query kept. Calls
+  `useLiveBar(ticker)` once and passes `bar`/`status` down as props.
+- `DrawerHeader.vue` — ticker, name, sector, live price, day change against
+  the position's `last_close` (`formatPercent(…, { showPlus: true })`).
+- `CityMetricsSection.vue` — every catalogue metric with its formatted value.
+- `FundamentalsSection.vue` — P/E, market cap (`formatCompactMoney`, added to
+  `format.ts` here), dividend yield. `watch(ticker, load)` +
+  `entryFor(ticker)`; skeleton while loading; 404 → "no fundamentals for this
+  ticker"; 503 → "unavailable — retry".
+- `LiveBarSection.vue` — latest bar OHLCV + timestamp from props;
+  "connecting…", "reconnecting…", "disconnected".
+- Status handling: WS `4404` → "ticker not found"; `4503` → amber "market
+  data provider unavailable".
 
-**Done when:**
+**Tests:** `TickerDrawer.spec.ts` (opens for the route ticker, closes back
+with the query), `LiveBarSection.spec.ts` (plain props, each status),
+`FundamentalsSection.spec.ts` (fake Api: loading → data → error);
+`formatCompactMoney` in `format.spec.ts`.
 
-- Clicking a row on `/spy/list` opens the drawer with the header populated
-  immediately (data already in the snapshot)
-- Fundamentals section shows skeleton, then real values within ~1s
-- Live bar section shows "connecting…" for a fraction of a second, then bars
-  arrive and update
-- Closing the drawer returns to `/spy/list` with sort/filter intact
-- All drawer tests pass; mutation-verify the reconnect UI transitions
+**Done when:** in the browser, a row click shows the header immediately,
+fundamentals within ~1–2s, live bars after a brief "connecting…" (first real
+check of the relative `/api/live` WebSocket URL); closing keeps sort and
+filters.
 
-**Checkpoints:**
-
-1. `TickerDrawer.vue` shell + open/close logic + selection highlight coordination
-2. Each section component (one PR each is fine)
-3. Error/status handling
-4. Tests
-5. Manual browser check with the backend live
+**Checkpoints:** shell + open/close → each section → status handling →
+browser check.
 
 ---
 
 ## Phase 6 — City view
 
-Goal: the treemap-city renders, responds to metric dropdowns, and clicking a
-building opens the same drawer as the list.
+Goal: the treemap city renders, responds to metric pickers, and a building
+click opens the same drawer.
 
-**Prerequisites:** Phase 5 complete. Backend `signed: bool` follow-up merged
-and `npm run gen:api` re-run. Finnhub dividend-yield unit verified.
-
-**Deliverables:**
-
-- `src/views/CityView.vue` — hosts the metric dropdowns + canvas + legend +
-  drawer outlet
-- `src/components/city/MetricPickers.vue` — two shadcn Select components:
-  "Height" and "Colour". Options from `useUniverseStore().metricsCatalogue`.
-  Reads/writes URL via `useQueryMetrics`.
-- `src/composables/useCityLayout.ts` — pure function turning positions +
-  sector aggregates into `BuildingLayout[]`. Uses `d3.hierarchy` +
-  `d3.treemap` twice:
-  - Outer treemap: one district per distinct sector in the payload
-    (null → Unclassified), sized by aggregate weight; `paddingOuter` wide
-    (avenue-like gaps between districts)
-  - Inner treemap per sector: holdings sized by weight; `paddingInner` narrow
-    (street-like gaps between buildings)
-  - Output: `{ ticker, x, z, width, depth, sector }` per building
-- `src/components/city/CityCanvas.vue` — imperative Three.js scene held in one
-  component. Life-cycle:
-  - `onMounted`: create renderer (`WebGLRenderer` with antialias + soft
-    shadows), scene, `PerspectiveCamera`, `MapControls` with polar clamps
-    `[15°, 75°]`, `AmbientLight` + `DirectionalLight` (angled from
-    above-left, `shadow.mapSize = 2048`), ground `Mesh` (grey plane,
-    receives shadows), and one `InstancedMesh` of `BoxGeometry(1,1,1)`
-    with `MeshStandardMaterial` (`vertexColors` + per-instance colour
-    attribute)
-  - `watch`: on layout change / metric change / theme change, rebuild the
-    instance matrices and colour buffer, flip `needsUpdate` flags
-  - `onUnmounted`: dispose geometries, materials, renderer, `MapControls`;
-    cancel `requestAnimationFrame`
-  - Frame loop: `MapControls.update()` + `renderer.render()`; only runs when
-    the camera moves or `needsUpdate` is set (invalidate-on-change, not fixed
-    60fps)
-- `src/composables/useCityColour.ts` — pure: given metric + `signed` flag +
-  value + domain, returns a Three colour. Uses `d3.interpolatePlasma` for
-  sequential; `d3.interpolateRdBu` clipped `[0.1, 0.9]` and centred on 0 for
-  diverging; nulls → neutral grey.
-- `src/composables/useCityHeight.ts` — pure: given metric + `scale` hint +
-  value + domain, returns a height in world units. `d3.scaleLinear` /
-  `scaleLog` / `scaleQuantile` mapped to `[1, 20]`. Log scale guards against
-  non-positive inputs (falls back to linear for that metric).
-- `src/components/city/SectorLabels.vue` — `CSS2DRenderer` overlay; one HTML
-  label per sector positioned above the district centroid, billboarded
-  automatically because it's DOM.
-- `src/components/city/BuildingTooltip.vue` — screen-space HTML tooltip
-  anchored to hovered building. Shows ticker, name, current height-metric
-  value. Hidden when nothing hovered.
-- `src/components/city/Legend.vue` — fixed corner overlay; renders the current
-  colour palette as a gradient with min / mid / max labels. Sequential shows
-  `[min, max]`; diverging shows `[−max, 0, +max]`.
-- Interaction:
-  - Hover: `Raycaster` on `pointermove` (throttled to `requestAnimationFrame`);
-    hovered instance gets an outline (via a second slightly-larger
-    `InstancedMesh` in accent colour, only the hovered index visible) + 1.05×
-    scale
-  - Click: push `{ name: 'city-ticker', params: { universeId, ticker } }` with query preserved
-  - Selection (route ticker exists): thicker outline in accent colour on the
-    selected building
-- Tests (Vitest — no browser needed for the pure bits):
-  - `useCityLayout.spec.ts` — hand-built positions; assert total footprint
-    equals total area minus padding; assert sector districts are correctly
-    scoped.
-  - `useCityColour.spec.ts` — assert 0 maps to palette midpoint (diverging);
-    assert null returns grey.
-  - `useCityHeight.spec.ts` — assert domain edges map to `[1, 20]`; log
-    fallback fires on non-positive input.
-  - No component tests for `CityCanvas` — Three.js in JSDOM is a losing battle;
-    manually verify in browser instead.
-
-**Done when:**
-
-- Browser: `/spy/city` renders the treemap-city with plasma-coloured buildings on
-  a light ground with visible street corridors
-- Both dropdowns work; URL updates on change; refreshing preserves selections
-- Hover shows outline + tooltip; click opens the drawer at
-  `/spy/city/ticker/AAPL`; drawer close returns to `/spy/city` with same metric picks
-- Rotating/panning/zooming feels smooth; camera cannot clip below the ground
-  plane or flip upside down
-- Legend matches the current colour metric; changes with the dropdown
-- All city-related pure-function tests pass
-
-**Checkpoints:**
-
-1. `useCityLayout` + `useCityHeight` + `useCityColour` (all pure, testable in
-   isolation) — write and test these before touching Three.js
-2. `CityCanvas.vue` skeleton: scene, camera, controls, ground, one instanced
-   box for every position with fixed height/colour. Verify it renders and
-   controls feel right.
-3. Wire metric dropdowns and colour/height scales; verify updates
-4. Hover outline + tooltip
-5. Click → drawer wiring
-6. Sector labels + legend
-7. Manual browser check on full S&P
-
----
-
-## Phase 7 — Polish, accessibility, follow-throughs
-
-Goal: things a real user would notice, but that don't gate the earlier phases.
-
-**Prerequisites:** Phase 6 complete.
+**Prerequisites:** Phase 5 done (including the `signed` follow-up).
 
 **Deliverables:**
 
-- Global toast system (shadcn Toast) for `Retry-After`-driven snapshot retries
-  and one-off errors
-- Keyboard nav pass:
-  - Drawer: `Esc` closes; focus trapped while open; focus returns to the
-    triggering row/building on close (shadcn Sheet handles most of this;
-    verify)
-  - Table: `Tab` moves through header sort buttons and filter chips; row focus
-    with `Tab`; `Enter` opens drawer
-- Screen-reader pass on the drawer (sensible headings, `aria-live` on live
-  price)
-- Loading skeletons anywhere still showing bare spinners
-- Empty-state components (0 filtered results in list; ticker not in universe on
-  direct drawer link)
-- README updates: dev workflow, `gen:api` step, how to run tests, prod build
-- Confirm Finnhub dividend-yield unit and adjust `format.ts` usage
-- Delete any scratch/scaffold code left over from Phases 0–6
+- Router: `CityView` loaded with `() => import(...)` so Three.js is only
+  downloaded when the city is opened.
+- `src/lib/cityLayout.ts` — pure: positions → `{ ticker, x, z, width, depth,
+  sector }[]` via `d3.hierarchy` + `d3.treemap` twice (districts sized by
+  sector weight with wide `paddingOuter`; holdings with narrow
+  `paddingInner`); `null` sector → Unclassified.
+- `src/lib/cityScales.ts` — pure: height (`scaleLinear` / `scaleLog` /
+  `scaleQuantile` → `[1, 20]`, log falls back to linear for non-positive
+  values) and colour (plasma, or RdBu clipped and centred on 0 when
+  `signed`; null → neutral grey).
+- `useQueryMetrics` in `useQueryState.ts` — `?height=` / `?color=`.
+- `components/city/MetricPickers.vue` (two shadcn Selects from the
+  catalogue), `CityCanvas.vue` (one component owning the imperative Three.js
+  scene: renderer, camera, `MapControls`, lights, ground, one
+  `InstancedMesh`; `watch` rebuilds matrices/colours; render on change, not
+  every frame; dispose everything on unmount), `SectorLabels.vue`
+  (`CSS2DRenderer`), `BuildingTooltip.vue`, `Legend.vue`.
+- Filters shared with the list: filtered-out buildings are dimmed.
+- Hover: raycast on `pointermove` (per animation frame) → outline + 1.05×.
+  Click → `city-ticker` route with the query kept; selected building gets a
+  thicker outline.
 
-**Done when:**
+**Tests:** `cityLayout.spec.ts` (footprints sum to area minus padding;
+districts scoped by sector), `cityScales.spec.ts` (domain edges → `[1, 20]`;
+log fallback; 0 → palette midpoint when signed; null → grey). No component
+test for `CityCanvas` (WebGL in jsdom isn't worth it) — browser check instead.
 
-- Keyboard-only navigation reaches every interactive control in list + drawer
-- Toasts fire on 503s
-- README explains a full local loop start-to-finish
+**Done when:** `/spy/city` renders the city with visible streets; pickers
+update it and the URL; hover/click/drawer work; orbiting is smooth and the
+camera can't go below ground; the legend follows the colour metric.
 
-**Checkpoints:**
-
-1. Toast wiring + retry integration
-2. Keyboard pass
-3. README
+**Checkpoints:** pure layout + scales → canvas skeleton (fixed boxes) →
+pickers → hover + tooltip → click → labels + legend → browser check.
 
 ---
 
-## What's explicitly not in this plan
+## Phase 7 — Polish and accessibility
 
-Called out so future-me doesn't wonder whether they were forgotten:
+- Toasts (shadcn) for `Retry-After`-driven retries and one-off errors.
+- Keyboard: the table becomes one tab stop with arrow-key row navigation
+  (roving focus) instead of a tab stop per row; `Enter` opens the drawer;
+  drawer `Esc` / focus trap / focus returns to the row or building.
+- Screen reader: drawer headings; `aria-live` on the live price.
+- Empty states: no rows match the filters; direct link to a ticker that isn't
+  in the universe.
+- Remove any leftover scaffold.
 
-- **E2E tests (Playwright).** Deferred until the list view is stable and worth
-  driving end-to-end. Adding it later is `npm init playwright` + one
-  workflow job.
-- **Column picker on the list.** All columns visible for MVP.
-- **CSV export from the list.** Roadmap item.
-- **Portfolio-import mode.** Roadmap item. The UI is built to accept it — see
-  "Universe-agnostic by design".
-- **Persistence layer (SQLite).** Deliberately after the frontend, per
-  `CLAUDE.md`. Follow-up it enables: stale-while-revalidate (serve the stored
-  snapshot at once, rebuild in the background) + a daily pre-warm, so no
-  visitor ever waits for the cold build (~8s today).
-- **Cross-metric filters (range sliders).** Sorting covers the "show me the
-  extremes" use case.
-- **Roads as relationship overlays.** Corridors are reserved in the layout,
-  but nothing draws in them yet. Real design work will happen when the
-  underlying relationship data exists.
-- **Live city.** Popup-only realtime remains the design; the city itself is a
-  per-session snapshot.
-- **Windows / roof detail on buildings.** Flat-topped boxes.
-- **LOD in the city.** 500 buildings render fine as-is; revisit only if
-  profiling says otherwise.
-- **Runtime WS message validation (zod/valibot).** Type alias is enough for an
-  internal contract with a tiny surface.
-- **Auto-locale detection.** `en-US` hardcoded; revisit if the app ever ships
-  to non-US audiences.
+**Done when:** keyboard-only use reaches every control in list + drawer;
+toasts fire on 503s.
 
-## Sequencing rationale (short)
+---
 
-- Phase 0 first because CI catches regressions from the very first frontend
-  commit; deferring CI is how projects end up without it.
-- Phase 1 before any UI because generated types force the rest of the code to
-  match the backend from day one.
-- Phase 2 (stores) before Phase 3 (routing) because the shell's Suspense
-  fallback needs a real async operation to await.
-- Phase 4 (list) before Phase 5 (popup) because the list is faster to build,
-  verifies the data path end-to-end, and its row-click is the first thing that
-  needs a drawer route.
-- Phase 5 (popup) before Phase 6 (city) because the drawer is shared between
-  both views — building it once against the simpler view catches contract
-  issues cheaply.
-- Phase 6 (city) last because Three.js is the biggest unknown for a Vue-new
-  developer, and it benefits from the other views being green so problems
-  isolate to the canvas.
-- Phase 7 after everything because polish landing before the substance risks
-  polishing code that gets rewritten.
+## Not in this plan
+
+- **E2E tests (Playwright)** — until the list and drawer are stable
+  (`npm init playwright` + one CI job).
+- **Column picker, CSV export** — roadmap.
+- **Portfolio import** — roadmap; the UI is ready for it.
+- **Persistence (SQLite)** — after the frontend. It enables
+  stale-while-revalidate (serve the stored snapshot at once, rebuild in the
+  background) and a daily pre-warm, so no visitor waits for the cold build
+  (~10s today, varies with Alpaca).
+- **Metric range filters, live city, building roofs/windows, city LOD,
+  runtime WS validation (zod), locale detection** — not needed for the MVP.
+- **Relationship "roads"** — corridors are reserved in the layout; nothing
+  draws in them until the data exists.
+
+## Sequencing rationale
+
+- List (4) before drawer (5) before city (6): each verifies the data path
+  more cheaply than the next, and the drawer is shared by both views, so it
+  is built once against the simpler one.
+- City last: Three.js is the biggest unknown, and with the other views green
+  any problem is isolated to the canvas.
+- Polish (7) last, so it isn't spent on code that gets rewritten.
