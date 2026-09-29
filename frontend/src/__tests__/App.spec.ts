@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, screen } from '@testing-library/vue'
 import { flushPromises } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/api/client'
 import { fakeApi } from './fakeApi'
@@ -40,9 +40,20 @@ describe('App', () => {
     )
 
     await fireEvent.click(await screen.findByRole('link', { name: 'City' }))
-    await screen.findByText(/City view/)
 
-    expect(router.currentRoute.value.fullPath).toBe('/test-portfolio/city?sector=Technology')
+    await vi.waitFor(() =>
+      expect(router.currentRoute.value.fullPath).toBe('/test-portfolio/city?sector=Technology'),
+    )
+  })
+
+  it('points to the list, keeping the query, when the browser cannot draw the 3D city', async () => {
+    // the test environment has no WebGL 2, like a browser without it
+    await renderAppAt('/test-portfolio/city?sector=Technology', testPortfolioApi().api)
+
+    const listLink = await screen.findByRole('link', { name: 'The list' })
+
+    expect(screen.getByText(/needs WebGL 2/)).toBeTruthy()
+    expect(listLink.getAttribute('href')).toBe('/test-portfolio/list?sector=Technology')
   })
 
   it('applies the filters in the URL to the list', async () => {

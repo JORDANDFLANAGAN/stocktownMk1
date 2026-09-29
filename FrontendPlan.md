@@ -111,7 +111,7 @@ long names truncated with the full name on hover.
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 113 frontend (Vitest) + 78 backend, all mutation-verified.
+Tests so far: 114 frontend (Vitest) + 78 backend, all mutation-verified.
 Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`, `TEST_CATALOGUE`,
 `TEST_INSTRUMENT`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),
@@ -211,6 +211,25 @@ Decisions (tune once seen in the browser):
   metric's scale. Missing value: height 1, grey (zinc-400).
 - Log metrics with zero or negative values fall back to linear; an
   all-equal set gets d3's midpoint (0.5).
+
+Canvas skeleton done (`components/city/CityCanvas.vue`, `views/CityView.vue`):
+
+- `CityView` is lazy-loaded; Three.js lives in its own chunk (~140 kB gzip,
+  main bundle unchanged at ~110 kB). The build warns that this chunk
+  (~560 kB minified, mostly Three.js) is over Vite's 500 kB default —
+  expected, and deliberately not silenced: `chunkSizeWarningLimit` is global,
+  so raising it would also stop guarding the main bundle. Investigate any
+  *other* chunk over the limit.
+- Without WebGL 2 (old browsers, and jsdom) the city shows a message linking
+  to the list with the query kept — which is also what tests exercise.
+  `CityCanvas` itself has no unit test (faked WebGL would only test the
+  fake); the browser check covers it.
+- One `InstancedMesh` of unit boxes (base on the ground, so `scale.y` is the
+  height) draws every building; rendered on camera change and resize only,
+  not every frame. Everything is disposed on unmount (GPU memory isn't
+  garbage collected). Camera starts at (0, 90, 110); `MapControls` polar
+  angle 15°–75° (never below ground), distance 15–300.
+- Placeholder look until the pickers: every building 4 high, zinc-500.
 
 **Deliverables:**
 

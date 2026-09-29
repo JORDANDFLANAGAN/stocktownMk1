@@ -1,7 +1,6 @@
 import { createRouter, type RouteRecordRaw, type RouterHistory } from 'vue-router'
 
 import TickerDrawer from '@/components/drawer/TickerDrawer.vue'
-import CityView from '@/views/CityView.vue'
 import ListView from '@/views/ListView.vue'
 import UniverseLayout from '@/views/UniverseLayout.vue'
 
@@ -26,7 +25,8 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'city',
         name: 'city',
-        component: CityView,
+        // loaded on first visit, so list-only visits never download Three.js
+        component: () => import('@/views/CityView.vue'),
         children: [
           { path: 'ticker/:ticker', name: 'city-ticker', component: TickerDrawer, props: true },
         ],
