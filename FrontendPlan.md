@@ -111,7 +111,7 @@ long names truncated with the full name on hover.
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 95 frontend (Vitest) + 78 backend, all mutation-verified.
+Tests so far: 113 frontend (Vitest) + 78 backend, all mutation-verified.
 Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`, `TEST_CATALOGUE`,
 `TEST_INSTRUMENT`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),
@@ -194,14 +194,32 @@ click opens the same drawer.
 
 **Prerequisites:** Phase 5 done.
 
+**Progress:** layout + scales done (`lib/cityLayout.ts`, `lib/cityScales.ts`).
+Decisions (tune once seen in the browser):
+
+- City 100 × 100 world units centred on the origin; heights 1–20 in the same
+  units. Streets 1.5 between sectors, alleys 0.25 between neighbours.
+- One d3 treemap call with padding per depth (street at the root, alley in
+  a district) instead of two calls — same result, less code.
+- Percentile metrics (6 of 7) use our own percentile rank: ties share the
+  middle rank, a single or all-equal set sits at mid-height. d3's
+  `scaleSequentialQuantile` maps between-values to the lower rank, all-equal
+  to the top and a single value to `NaN`.
+- Signed colours: RdBu inner 80%, white at 0, red losses, blue gains
+  (colour-blind friendly); full strength at the 95th percentile of |moves|
+  so one outlier doesn't wash the city out. Unsigned: plasma, following the
+  metric's scale. Missing value: height 1, grey (zinc-400).
+- Log metrics with zero or negative values fall back to linear; an
+  all-equal set gets d3's midpoint (0.5).
+
 **Deliverables:**
 
 - Router: `CityView` loaded with `() => import(...)` so Three.js is only
   downloaded when the city is opened.
-- `src/lib/cityLayout.ts` — pure: positions → `{ ticker, x, z, width, depth,
-  sector }[]` via `d3.hierarchy` + `d3.treemap` twice (districts sized by
-  sector weight with wide `paddingOuter`; holdings with narrow
-  `paddingInner`); `null` sector → Unclassified.
+- `src/lib/cityLayout.ts` — pure: positions → buildings and districts
+  (`{ x, z, width, depth }` + ticker/sector) via `d3.hierarchy` + one
+  `d3.treemap` (street padding between districts, alley padding between
+  buildings); `null` sector → Unclassified.
 - `src/lib/cityScales.ts` — pure: height (`scaleLinear` / `scaleLog` /
   `scaleQuantile` → `[1, 20]`, log falls back to linear for non-positive
   values) and colour (plasma, or RdBu clipped and centred on 0 when
@@ -218,9 +236,10 @@ click opens the same drawer.
   Click → `city-ticker` route with the query kept; selected building gets a
   thicker outline.
 
-**Tests:** `cityLayout.spec.ts` (footprints sum to area minus padding;
-districts scoped by sector), `cityScales.spec.ts` (domain edges → `[1, 20]`;
-log fallback; 0 → palette midpoint when signed; null → grey). No component
+**Tests:** `cityLayout.spec.ts` (area proportional to weight; one district
+per sector containing its buildings; street/alley gaps between every pair),
+`cityScales.spec.ts` (domain edges → `[1, 20]`; ranks and ties; log
+fallback; 0 → white when signed; outlier saturation; null → grey). No component
 test for `CityCanvas` (WebGL in jsdom isn't worth it) — browser check instead.
 
 **Done when:** `/spy/city` renders the city with visible streets; pickers
