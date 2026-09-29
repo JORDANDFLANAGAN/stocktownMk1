@@ -14,8 +14,8 @@ const props = defineProps<{ ticker: string }>()
 const route = useRoute()
 const router = useRouter()
 const store = useUniverseStore()
-// one connection per open drawer; the sections get the bar as a prop
-const { bar } = useLiveBar(toRef(props, 'ticker'))
+// one connection per open drawer; the header gets the bar and its status as props
+const { bar, status } = useLiveBar(toRef(props, 'ticker'))
 
 const position = computed(() => store.positions.find(({ ticker }) => ticker === props.ticker))
 
@@ -47,6 +47,7 @@ function close(): void {
         :universe-name="store.universe?.name ?? ''"
         :session-date="store.universe?.session_date ?? null"
         :bar="bar"
+        :status="status"
       />
       <div v-if="position" class="flex flex-1 flex-col gap-6 overflow-y-auto px-4 pb-4">
         <CityMetricsSection

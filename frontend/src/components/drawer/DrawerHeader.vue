@@ -4,8 +4,9 @@ import { computed } from 'vue'
 import type { Position } from '@/api/client'
 import type { LiveBar } from '@/api/live'
 import { SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import type { LiveStatus } from '@/composables/useLiveBar'
 import { formatPercent, formatPrice } from '@/lib/format'
-import { headlineQuote } from '@/lib/quote'
+import { headlineQuote, quoteTag } from '@/lib/quote'
 
 const props = defineProps<{
   ticker: string
@@ -13,6 +14,7 @@ const props = defineProps<{
   universeName: string
   sessionDate: string | null
   bar: LiveBar | null
+  status: LiveStatus
 }>()
 
 const quote = computed(() =>
@@ -38,7 +40,7 @@ const quote = computed(() =>
         {{ formatPercent(quote.change, { showPlus: true }) }}
       </span>
       <span class="text-xs text-muted-foreground">
-        {{ quote.source === 'live' ? 'Live' : `Close, ${sessionDate}` }}
+        {{ quoteTag(quote, bar, status, sessionDate) }}
       </span>
     </div>
   </SheetHeader>

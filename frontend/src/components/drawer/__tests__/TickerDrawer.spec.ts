@@ -35,8 +35,19 @@ describe('TickerDrawer', () => {
     expect(latestSocket().url).toBe('/api/live?ticker=AAA')
     expect(drawer.textContent).toContain('$188.90')
     expect(drawer.textContent).toContain('+2.0%')
-    expect(drawer.textContent).toContain('Live')
+    expect(drawer.textContent).toContain('Live · 15:59 ET')
     expect(drawer.textContent).not.toContain('Close, 2026-09-25')
+  })
+
+  it('says so when the market data provider is down', async () => {
+    const { openSocket, latestSocket } = recordingSockets()
+    await renderAppAt('/test-portfolio/list/ticker/AAA', testPortfolioApi().api, { openSocket })
+    const drawer = await screen.findByRole('dialog', { name: 'AAA' })
+
+    latestSocket().drop(4503)
+    await flushPromises()
+
+    expect(drawer.textContent).toContain('Close, 2026-09-25 · live prices unavailable')
   })
 
   it("lists every metric in the catalogue with the position's values", async () => {

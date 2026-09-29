@@ -20,6 +20,7 @@ export class FakeSocket implements LiveSocket {
       type: 'bar',
       ticker,
       minute_utc: '2026-09-28T19:59:00Z',
+      minute_market: '2026-09-28T15:59:00-04:00',
       session_date: '2026-09-28',
       open: close,
       high: close,

@@ -111,7 +111,7 @@ long names truncated with the full name on hover.
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 89 frontend (Vitest) + 77 backend, all mutation-verified.
+Tests so far: 95 frontend (Vitest) + 78 backend, all mutation-verified.
 Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`, `TEST_CATALOGUE`,
 `TEST_INSTRUMENT`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),
@@ -124,8 +124,8 @@ specs render with Testing Library and wait for navigation with `flushPromises`.
 
 ## Phase 5 — Popup (drawer)
 
-Goal: clicking a row opens a working drawer with live price, city metrics,
-fundamentals and the latest bar. The same drawer serves the city later.
+Goal: clicking a row opens a working drawer with live price, city metrics
+and fundamentals. The same drawer serves the city later.
 
 **Prerequisites:** Phase 4 done. (Finnhub's dividend yield is a percent;
 `services/instruments.py` already converts it to a fraction.)
@@ -145,7 +145,13 @@ Fundamentals done — `FundamentalsSection.vue` fetches once the drawer has
 stayed on a ticker for 300 ms (non-modal switching makes flicking through
 rows cheap; Finnhub is 60/min), nothing if closed sooner; placeholder / 404
 "No fundamentals" / 503 "unavailable" + Retry; `formatCompactMoney`,
-`formatOrDash`.
+`formatOrDash`. Live status done — no separate live-bar section (one
+minute's OHLC adds little; IEX volume is ~2–3% of true volume, so showing
+it would mislead). Instead the header tag (`quoteTag`) shows the bar's
+minute in market time (`minute_market` from the backend: "Live · 15:59 ET")
+and connection problems ("reconnecting…", "live prices unavailable", "no
+live prices for this ticker"); the normal first connect gets no note. Next:
+the browser check.
 
 **Deliverables:**
 
@@ -162,20 +168,19 @@ rows cheap; Finnhub is 60/min), nothing if closed sooner; placeholder / 404
   `format.ts` here), dividend yield. `watch(ticker, load)` +
   `entryFor(ticker)`; skeleton while loading; 404 → "no fundamentals for this
   ticker"; 503 → "unavailable — retry".
-- `LiveBarSection.vue` — latest bar OHLCV + timestamp from props;
-  "connecting…", "reconnecting…", "disconnected".
-- Status handling: WS `4404` → "ticker not found"; `4503` → amber "market
-  data provider unavailable".
+- Live status in the header tag (`quoteTag`), replacing the planned
+  `LiveBarSection.vue`: the bar's minute in ET, and 4404 / 4503 / retries
+  exhausted / reconnecting as short notes.
 
 **Tests:** `TickerDrawer.spec.ts` (opens for the route ticker, closes back
-with the query), `LiveBarSection.spec.ts` (plain props, each status),
+with the query), `quoteTag` in `quote.spec.ts` (each status),
 `FundamentalsSection.spec.ts` (fake Api: loading → data → error);
 `formatCompactMoney` in `format.spec.ts`.
 
 **Done when:** in the browser, a row click shows the header immediately,
-fundamentals within ~1–2s, live bars after a brief "connecting…" (first real
-check of the relative `/api/live` WebSocket URL); closing keeps sort and
-filters.
+fundamentals within ~1–2s, "Live · HH:MM ET" during market hours (first
+real check of the relative `/api/live` WebSocket URL); closing keeps sort
+and filters.
 
 **Checkpoints:** shell + open/close → each section → status handling →
 browser check.
