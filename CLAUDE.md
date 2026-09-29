@@ -22,7 +22,7 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Live popup stream (Phase B): complete.** `WS /live?ticker=` sends the latest bar immediately, then minute bars. `LiveBarHub` (`services/live.py`) shares Alpaca's ONE allowed WebSocket connection across all popups: ref-counted per-ticker subscriptions, lazy connect, idle disconnect after 60s, reconnect + resubscribe with backoff, bounded per-viewer queues (drop oldest). `AssetCatalogue` (`services/assets.py`) resolves any ticker spelling for both popup endpoints. Verified live against Alpaca and a real uvicorn server. 74 tests.
 
-**Frontend: in progress** — Vue 3 + TypeScript + Vite in `frontend/`, following `FrontendPlan.md` (phased plan + global decisions; read it before frontend work). Phase 0 (scaffold, Tailwind, shadcn-vue, CI) and Phase 1 (typed API client, live message parser) done.
+**Frontend: in progress** — Vue 3 + TypeScript + Vite in `frontend/`, following `FrontendPlan.md` (phased plan + global decisions; read it before frontend work). Phase 0 (scaffold, Tailwind, shadcn-vue, CI), Phase 1 (typed API client, live message parser), Phase 2 (stores, live-bar composable) and Phase 3 (routes, layout shell, formatters) done.
 
 **Not yet built:** DB persistence (deliberately after the frontend).
 
