@@ -73,6 +73,25 @@ describe('TickerDrawer', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('switches to another row clicked while open, without closing in between', async () => {
+    const router = await renderAppAt('/test-portfolio/list/ticker/AAA', testPortfolioApi().api)
+    await screen.findByRole('dialog', { name: 'AAA' })
+    await new Promise((resolve) => setTimeout(resolve, 0)) // reka listens for outside presses a tick after opening
+    const visited: string[] = []
+    router.afterEach((to) => {
+      visited.push(to.fullPath)
+    })
+
+    // a real click: the press and the click both land on the row
+    const bbbRow = screen.getByRole('row', { name: /Beta Holdings/ })
+    await fireEvent.pointerDown(bbbRow)
+    await fireEvent.click(bbbRow)
+    await flushPromises()
+
+    expect(visited).toEqual(['/test-portfolio/list/ticker/BBB'])
+    expect(screen.getByRole('dialog', { name: 'BBB' })).toBeTruthy()
+  })
+
   it('closes back to the city when opened from the city', async () => {
     const router = await renderAppAt('/test-portfolio/city/ticker/AAA', testPortfolioApi().api)
 

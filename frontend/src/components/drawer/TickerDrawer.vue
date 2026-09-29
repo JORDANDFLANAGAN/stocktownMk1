@@ -18,6 +18,11 @@ const { bar } = useLiveBar(toRef(props, 'ticker'))
 
 const position = computed(() => store.positions.find(({ ticker }) => ticker === props.ticker))
 
+/** A press outside (e.g. on another row) picks that row instead; X and Esc close the drawer. */
+function keepOpen(event: Event): void {
+  event.preventDefault()
+}
+
 /** Back to the view underneath (list or city), keeping sort and filters. */
 function close(): void {
   const parentView = route.matched[route.matched.length - 2]
@@ -30,9 +35,11 @@ function close(): void {
 </script>
 
 <template>
-  <!-- open for as long as the route is: closing it means leaving the route -->
-  <Sheet :open="true" @update:open="close">
-    <SheetContent side="right">
+  <!-- Open for as long as the route is: closing it means leaving the route. Not modal, so the
+       view underneath stays usable and choosing another row or building switches the drawer in
+       place rather than closing it and opening a new one. -->
+  <Sheet :open="true" :modal="false" @update:open="close">
+    <SheetContent side="right" @interact-outside="keepOpen">
       <DrawerHeader
         :ticker="ticker"
         :position="position"

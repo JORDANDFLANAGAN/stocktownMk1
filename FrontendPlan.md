@@ -111,7 +111,7 @@ long names truncated with the full name on hover.
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 79 frontend (Vitest) + 77 backend, all mutation-verified.
+Tests so far: 80 frontend (Vitest) + 77 backend, all mutation-verified.
 Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`, `TEST_CATALOGUE`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),
 `src/__tests__/renderApp.ts` (`renderAppAt`, `testPortfolioApi`; always
@@ -129,7 +129,9 @@ fundamentals and the latest bar. The same drawer serves the city later.
 **Prerequisites:** Phase 4 done. (Finnhub's dividend yield is a percent;
 `services/instruments.py` already converts it to a fraction.)
 
-**Progress:** shell done — modal Sheet open while its route is; closing
+**Progress:** shell done — non-modal Sheet open while its route is (a
+modal one closed on the press, so the release opened a second drawer — a
+visible flash when switching rows); closing
 returns to the parent view (`route.matched`) with the query kept. Header
 done — `DrawerHeader.vue` + pure `lib/quote.ts` (`headlineQuote`): live
 price vs `last_close` once a bar's `session_date` is after the snapshot's,
@@ -141,7 +143,8 @@ otherwise last close + `day_change` ("Close, {date}"); `formatPrice`;
 
 **Deliverables:**
 
-- `components/drawer/TickerDrawer.vue` — shadcn Sheet (focus trap, `Esc`),
+- `components/drawer/TickerDrawer.vue` — non-modal shadcn Sheet (`Esc`/X
+  close; a press outside picks that row or building instead of closing),
   right side; closing returns to the parent view with the query kept. Calls
   `useLiveBar(ticker)` once and passes `bar`/`status` down as props.
 - `DrawerHeader.vue` — ticker, name, sector, live price, day change against
@@ -223,7 +226,7 @@ pickers → hover + tooltip → click → labels + legend → browser check.
 - Toasts (shadcn) for `Retry-After`-driven retries and one-off errors.
 - Keyboard: the table becomes one tab stop with arrow-key row navigation
   (roving focus) instead of a tab stop per row; `Enter` opens the drawer;
-  drawer `Esc` / focus trap / focus returns to the row or building.
+  drawer `Esc` / focus returns to the row or building.
 - Screen reader: drawer headings; `aria-live` on the live price.
 - Empty states: no rows match the filters; direct link to a ticker that isn't
   in the universe.

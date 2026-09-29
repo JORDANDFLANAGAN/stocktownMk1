@@ -12,7 +12,7 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Metric layer: complete.** 7 price-based metrics in `services/metrics/`, computed from a single Alpaca fetch. Full S&P 500 × 7 metrics ≈ 5s (fetch; the maths is ~0.2s). Preview with `uv run python -m stocktown metrics [TICKERS... | --spy]`. Verified: beta of VOO/IVV vs SPY ≈ 1.00.
 
-**Tests:** 77 backend (pytest, ~0.7s) + 79 frontend (Vitest), behavioural and mutation-checked.
+**Tests:** 77 backend (pytest, ~0.7s) + 80 frontend (Vitest), behavioural and mutation-checked.
 
 **Tooling: uv.** `uv sync` to set up, `uv run …` to run, `uv add [--dev] <pkg>` for dependencies. `uv.lock` pins versions and is committed. Dev dependencies live in `[dependency-groups] dev` in `pyproject.toml`.
 
