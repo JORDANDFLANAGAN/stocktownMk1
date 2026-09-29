@@ -15,9 +15,9 @@ def list_metrics() -> list[MetricInfoResponse]:
         MetricInfoResponse(
             key=metric.key,
             label=metric.label,
-            unit=metric.unit.value,
-            scale=metric.scale.value,
-            refresh=metric.refresh.value,
+            unit=metric.unit,
+            scale=metric.scale,
+            refresh=metric.refresh,
         )
         for metric in ALL_METRICS
     ]

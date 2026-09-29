@@ -88,12 +88,9 @@ export interface components {
             key: string;
             /** Label */
             label: string;
-            /** Unit */
-            unit: string;
-            /** Scale */
-            scale: string;
-            /** Refresh */
-            refresh: string;
+            unit: components["schemas"]["Unit"];
+            scale: components["schemas"]["Scale"];
+            refresh: components["schemas"]["Refresh"];
         };
         /** PositionResponse */
         PositionResponse: {
@@ -114,6 +111,25 @@ export interface components {
                 [key: string]: number | null;
             };
         };
+        /**
+         * Refresh
+         * @description How often the underlying data changes. Metadata for now; drives caching later.
+         * @enum {string}
+         */
+        Refresh: "live" | "daily";
+        /**
+         * Scale
+         * @description How the frontend maps raw values to height/colour, relative to the universe on screen.
+         * @enum {string}
+         */
+        Scale: "linear" | "log" | "percentile";
+        /**
+         * Unit
+         * @description Display unit. PERCENT values are stored as fractions (0.12 = 12%);
+         *     RATIO values are plain multiples (1.2 = 1.2×).
+         * @enum {string}
+         */
+        Unit: "percent" | "ratio";
         /** UniverseResponse */
         UniverseResponse: {
             /** Id */

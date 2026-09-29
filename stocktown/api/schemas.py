@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from stocktown.domain.models import MinuteBar
+from stocktown.services.metrics import Refresh, Scale, Unit
 
 
 class PositionResponse(BaseModel):
@@ -28,9 +29,9 @@ class UniverseResponse(BaseModel):
 class MetricInfoResponse(BaseModel):
     key: str
     label: str
-    unit: str
-    scale: str
-    refresh: str
+    unit: Unit
+    scale: Scale
+    refresh: Refresh
 
 
 class InstrumentResponse(BaseModel):

@@ -1,3 +1,5 @@
+import type { MetricInfo } from '@/api/client'
+
 const LOCALE = 'en-US'
 const MINUS_SIGN = '−' // typographic minus: same width as "+", so columns line up
 const NO_VALUE = '—'
@@ -22,7 +24,7 @@ export function formatRatio(value: number, digits = 2): string {
 }
 
 /** Formats a metric value by its catalogue unit; "—" when the metric has no value for this position. */
-export function formatMetricValue(value: number | null, unit: string): string {
+export function formatMetricValue(value: number | null, unit: MetricInfo['unit']): string {
   if (value === null) {
     return NO_VALUE
   }
