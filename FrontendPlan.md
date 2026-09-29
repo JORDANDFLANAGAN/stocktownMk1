@@ -36,7 +36,7 @@ Full reasoning lives in the grill transcript; this is a reference card.
 | Popup | Nested route (`/list/ticker/:ticker`, `/city/ticker/:ticker`), right-side drawer |
 | URL state | View, ticker, sort, filters, metric picks — all live in URL |
 | Styling | Tailwind CSS + shadcn-vue |
-| Theme | Slate neutral + teal/indigo accent (avoids RdBu collision) |
+| Theme | Zinc neutral + teal primary (avoids RdBu and plasma's purple end); Inter self-hosted via `@fontsource-variable/inter` |
 | Dev integration | Vite proxy to FastAPI |
 | Pinia | Three Setup Stores: `useUniverseStore`, `useFundamentalsStore`, `useLiveBarStore` |
 | WS consumption | `useLiveBar(ticker)` composable + 3-try exponential-backoff reconnect |
@@ -82,12 +82,19 @@ running both backend and frontend on every push.
 - `frontend/tsconfig.json` sets `strict: true` and `noUncheckedIndexedAccess: true`
 - `frontend/vite.config.ts` proxies `/universes`, `/instruments`, `/metrics`,
   `/live` to `http://localhost:8000`
-- Tailwind CSS installed (`tailwindcss`, `postcss`, `autoprefixer`) with
-  `tailwind.config.js` set to `slate` neutral + a teal or indigo primary
-- shadcn-vue initialised via its CLI; components land in
-  `src/components/ui/` under our own source control
+- Tailwind CSS v4 installed (`tailwindcss`, `@tailwindcss/vite`) as a Vite
+  plugin — no `postcss`/`autoprefixer`/`tailwind.config.js`; the theme
+  (`zinc` neutral + teal primary) lives in `src/assets/main.css`
+- shadcn-vue 2.8 initialised via its CLI (`--base reka --style vega
+  --icon-library lucide -b zinc`); components land in `src/components/ui/`
+  under our own source control. `slate` no longer exists and `mist` emits no
+  CSS variables (build fails), hence `zinc`. The Google Fonts `@import` it
+  writes is replaced by the self-hosted font.
 - Dependencies added:
-  - `openapi-fetch`, `openapi-typescript` (dev)
+  - `openapi-fetch`, `openapi-typescript` (dev). `openapi-typescript` 7.13
+    declares `typescript@^5` as a peer; `package.json` `overrides` points it
+    at the project's TypeScript 6 (verified: generated schema passes
+    `tsc --strict`). Remove the override once upstream supports TS 6.
   - `@tanstack/vue-table`, `@tanstack/vue-virtual`
   - `d3-hierarchy`, `d3-scale`, `d3-scale-chromatic` (+ their `@types/*`)
   - `three`, `@types/three`
