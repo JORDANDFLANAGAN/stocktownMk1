@@ -64,22 +64,6 @@ current universe on screen when a *reload* fails (the store already does,
 the layout still swaps in the error page). Portfolio import needs a backend
 endpoint that computes metrics for an arbitrary ticker list.
 
-## Backend follow-ups — before Phase 5
-
-The drawer needs all three; they land as small separate commits, each
-running `npm run gen:api` (CI fails on schema drift).
-
-- **`last_close` on `PositionResponse`** — the drawer's live day change needs
-  the previous close; the payload carries no price today.
-- **`Literal` types for `unit`, `scale`, `refresh`** in `MetricInfoResponse`,
-  so the generated TypeScript is `'percent' | 'ratio'` rather than `string`.
-- **`signed: bool` on `Metric` / `MetricInfoResponse`** (`day_change`,
-  `one_year_return` → `True`) — drives the diverging palette in Phase 6 and
-  the "+" sign on returns in the drawer.
-
-Also before the fundamentals section: **confirm Finnhub's dividend-yield
-unit** (fraction vs percent).
-
 ---
 
 ## Done: Phases 0–4
@@ -121,7 +105,11 @@ events out; one column per catalogue metric; missing values sort last);
 `FilterBar` (the input keeps its own text so keystrokes aren't lost while
 the URL updates).
 
-Tests so far: 53 frontend (Vitest) + 74 backend, all mutation-verified.
+**Backend follow-ups.** `last_close` on positions; `unit`/`scale`/`refresh`
+as enums (fixed values in the generated TypeScript); `signed` on every
+metric.
+
+Tests so far: 53 frontend (Vitest) + 77 backend, all mutation-verified.
 Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`); component specs render
 with Testing Library and wait for navigation with `flushPromises`.
@@ -133,7 +121,8 @@ with Testing Library and wait for navigation with `flushPromises`.
 Goal: clicking a row opens a working drawer with live price, city metrics,
 fundamentals and the latest bar. The same drawer serves the city later.
 
-**Prerequisites:** Phase 4 done; the backend follow-ups above merged.
+**Prerequisites:** Phase 4 done. (Finnhub's dividend yield is a percent;
+`services/instruments.py` already converts it to a fraction.)
 
 **Deliverables:**
 
@@ -142,6 +131,8 @@ fundamentals and the latest bar. The same drawer serves the city later.
   `useLiveBar(ticker)` once and passes `bar`/`status` down as props.
 - `DrawerHeader.vue` — ticker, name, sector, live price, day change against
   the position's `last_close` (`formatPercent(…, { showPlus: true })`).
+  When the live bar is dated on or before `session_date` (market closed),
+  show the `day_change` metric instead, or the live change would read ~0%.
 - `CityMetricsSection.vue` — every catalogue metric with its formatted value.
 - `FundamentalsSection.vue` — P/E, market cap (`formatCompactMoney`, added to
   `format.ts` here), dividend yield. `watch(ticker, load)` +
@@ -172,7 +163,7 @@ browser check.
 Goal: the treemap city renders, responds to metric pickers, and a building
 click opens the same drawer.
 
-**Prerequisites:** Phase 5 done (including the `signed` follow-up).
+**Prerequisites:** Phase 5 done.
 
 **Deliverables:**
 
