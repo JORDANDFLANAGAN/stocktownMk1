@@ -33,7 +33,7 @@ Full reasoning lives in the grill transcript; this is a reference card.
 | HTTP client | `openapi-fetch` |
 | Types (HTTP) | Generated from `/openapi.json` via `openapi-typescript` → `src/api/schema.d.ts` |
 | Types (WS) | Hand-written discriminated union in `src/api/live.ts` (OpenAPI doesn't cover WS) |
-| Popup | Nested route (`/list/ticker/:ticker`, `/city/ticker/:ticker`), right-side drawer |
+| Popup | Nested route (`/:universeId/list/ticker/:ticker`, `/:universeId/city/ticker/:ticker`), right-side drawer |
 | URL state | View, ticker, sort, filters, metric picks — all live in URL |
 | Styling | Tailwind CSS + shadcn-vue |
 | Theme | Zinc neutral + teal primary (avoids RdBu and plasma's purple end); Inter self-hosted via `@fontsource-variable/inter` |
@@ -42,7 +42,7 @@ Full reasoning lives in the grill transcript; this is a reference card.
 | WS consumption | `useLiveBar(ticker)` composable + 3-try exponential-backoff reconnect |
 | Testing | Vitest + `@testing-library/vue`; behavioural names; inject fakes; mutation-verify |
 | CI | GitHub Actions — one workflow, backend job + frontend job |
-| Prod serving | FastAPI `StaticFiles` mount → same-origin |
+| Prod serving | Deferred until deployment. Likely FastAPI serving `frontend/dist` (same-origin), with a fallback to `index.html` for deep links |
 | List | All columns visible + TanStack Table + TanStack Virtual + single-column sort |
 | List filters | Sector multi-select chips + ticker/name substring; no metric range filters |
 | URL params | `?sort=-beta&sector=Technology,Financials&q=aapl&height=one_year_return&color=day_change` |
@@ -54,6 +54,37 @@ Full reasoning lives in the grill transcript; this is a reference card.
 | City camera | `MapControls`, perspective @ ~45°, polar clamp `[15°, 75°]` |
 | City palettes | Plasma (sequential), RdBu clipped `[0.1, 0.9]` (diverging, driven by new `signed` flag) |
 | City hover/select | Coloured outline + 1.05× scale; selected uses thicker outline in accent |
+
+## Universe-agnostic by design
+
+The UI renders *a universe* — `{id, name, session_date, positions[]}` — and
+never assumes it is the S&P 500. Adding an index fund = one backend
+`UNIVERSES` entry, no UI change. Portfolio import later = another source of
+the same shape.
+
+Rules (cheap now, expensive to retrofit):
+
+- **Universe id lives in the URL:** `/:universeId/list`, `/:universeId/city`,
+  `/:universeId/list/ticker/:ticker`. `/` redirects to the default. The only
+  `"spy"` literal in the frontend is `DEFAULT_UNIVERSE_ID` in one constants file.
+- **Store takes the id:** `load(universeId)`. Page title and date come from the
+  payload's `name` and `session_date`, never hard-coded text.
+- **Nothing counts sectors or assumes they exist:** districts, filter chips and
+  legends derive from the distinct sectors in the payload; `sector: null`
+  groups under "Unclassified".
+- **Nothing assumes equities:** `asset_class` is displayed, not assumed; popup
+  sections whose data is missing (e.g. no fundamentals for an ETF) show
+  "unavailable" rather than breaking.
+- **Columns and metric pickers come from `GET /metrics`** (already the case).
+- **Tests use a small non-SPY fixture:** e.g. a 3-position "Test Portfolio"
+  with one `sector: null` and one non-equity position, so any hidden SPY
+  assumption fails a test.
+
+Deliberately *not* built yet (no second universe to justify them):
+- A universe picker and `GET /universes` list endpoint. Added with the second
+  universe; the picker is then one dropdown bound to the route param.
+- Portfolio import. Needs a backend endpoint that computes metrics for an
+  arbitrary ticker list (the metric layer is already per-ticker).
 
 ## Backend follow-ups (small; queued alongside frontend work)
 
@@ -104,15 +135,16 @@ running both backend and frontend on every push.
   `http://localhost:8000/openapi.json`)
 - `.github/workflows/ci.yml` with two jobs:
   - **backend**: `uv sync`, `uv run pytest`
-  - **frontend**: `npm ci`, `npm run type-check`, `npm run lint`,
-    `npm run test`, `npm run gen:api && git diff --exit-code src/api/schema.d.ts`
-    (the last step catches out-of-sync backend schemas)
-- `stocktown/main.py` gains a `StaticFiles(directory="frontend/dist", html=True)`
-  mount at `/` (guarded: only mounts if the directory exists, so `uv run
-  uvicorn` works before the first `npm run build`)
-- `README.md` gets a `## Frontend` section: install, dev, build, prod-serve steps
-- `.gitignore` extended for `frontend/node_modules/`, `frontend/dist/`,
-  `frontend/coverage/`
+  - **frontend**: `npm ci`, `npm run lint && git diff --exit-code` (lint
+    auto-fixes, so fail if it changed anything), `npm run test`,
+    `npm run build` (includes type-check)
+  - The schema drift check (`gen:api` + `git diff`) moves to Phase 1, once
+    `schema.d.ts` exists
+- ~~`stocktown/main.py` static mount~~ — deferred until deployment (dev uses
+  the Vite server; see "Prod serving")
+- `README.md` gets a `## Frontend` section: install, dev, build steps
+- `.gitignore`: no change needed — create-vue's `frontend/.gitignore` covers
+  `node_modules`, `dist`, `coverage`
 
 **Done when:**
 
@@ -122,16 +154,13 @@ running both backend and frontend on every push.
   project
 - `npm run gen:api` (with the backend running) writes `src/api/schema.d.ts`
 - A push triggers CI; both jobs go green
-- `npm run build && uv run uvicorn stocktown.main:app` serves the built page at
-  `http://localhost:8000`
 
 **Checkpoints (review pauses):**
 
 1. Full list of `npm install` commands + final `package.json` — before install
-2. `tsconfig.json`, `vite.config.ts`, `tailwind.config.js`, shadcn `components.json`
+2. `tsconfig.json`, `vite.config.ts`, Tailwind CSS setup, shadcn `components.json`
 3. `ci.yml` (both jobs)
-4. `main.py` StaticFiles mount + guard
-5. Post-run: verify all four "done when" checks
+4. Post-run: verify the "done when" checks
 
 ---
 
@@ -146,6 +175,9 @@ reachable.
 **Deliverables:**
 
 - `src/api/schema.d.ts` — generated from `/openapi.json`, committed
+- CI: schema drift check — regenerate `schema.d.ts` and `git diff --exit-code`
+  (moved from Phase 0; decide then whether CI dumps `openapi.json` from Python
+  or starts the server)
 - `src/api/client.ts` — exports a configured `openapi-fetch` client instance
   typed against `schema.d.ts`. Base URL blank (relative paths, dev proxy handles it).
 - `src/api/live.ts` — hand-written discriminated union for WS messages:
@@ -186,7 +218,7 @@ Goal: all data-fetching primitives in place, unit-tested, no UI consumers yet.
 - `src/stores/universe.ts` — `useUniverseStore` (Setup Store). Accepts an
   injected client for testability. Exposes `positions`, `sectors`,
   `metricsCatalogue` (from `/metrics`), plus `{loading, error}`. Method:
-  `load()` fetches both `/universes/spy` and `/metrics` in parallel.
+  `load(universeId)` fetches `/universes/{universeId}` and `/metrics` in parallel.
 - `src/stores/fundamentals.ts` — `useFundamentalsStore`. Per-ticker cache
   keyed by ticker; `get(ticker)` returns cached entry or fetches from
   `/instruments/{ticker}`. Entry shape: `{loading, error, data}` per ticker.
@@ -419,7 +451,8 @@ and `npm run gen:api` re-run. Finnhub dividend-yield unit verified.
 - `src/composables/useCityLayout.ts` — pure function turning positions +
   sector aggregates into `BuildingLayout[]`. Uses `d3.hierarchy` +
   `d3.treemap` twice:
-  - Outer treemap: 11 sectors sized by aggregate weight; `paddingOuter` wide
+  - Outer treemap: one district per distinct sector in the payload
+    (null → Unclassified), sized by aggregate weight; `paddingOuter` wide
     (avenue-like gaps between districts)
   - Inner treemap per sector: holdings sized by weight; `paddingInner` narrow
     (street-like gaps between buildings)
@@ -551,7 +584,8 @@ Called out so future-me doesn't wonder whether they were forgotten:
   workflow job.
 - **Column picker on the list.** All columns visible for MVP.
 - **CSV export from the list.** Roadmap item.
-- **Portfolio-import mode.** Roadmap item.
+- **Portfolio-import mode.** Roadmap item. The UI is built to accept it — see
+  "Universe-agnostic by design".
 - **Persistence layer (SQLite).** Deliberately after the frontend, per
   `CLAUDE.md`.
 - **Cross-metric filters (range sliders).** Sorting covers the "show me the

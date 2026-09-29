@@ -64,7 +64,25 @@ Any ticker spelling works (`BRK.B`, `brk-b`, `BRK/B`). Alpaca's free tier allows
 
 Errors: `404` unknown universe/ticker; `503` provider down or rate-limited (with `Retry-After` when known). If a daily refresh fails, the previous snapshot keeps being served. CORS allows the Vite dev server (`http://localhost:5173`) by default; override with `CORS_ALLOWED_ORIGINS` in `.env`.
 
-## Frontend (planned)
+## Frontend
+
+Vue 3 + TypeScript + Vite in `frontend/`. Needs Node 22.18+ (developed on 26); npm comes with it.
+
+```bash
+cd frontend
+npm install     # like `uv sync`: installs into frontend/node_modules
+npm run dev     # http://localhost:5173, hot reload; API calls are proxied to :8000
+```
+
+Run the API server alongside it.
+
+| Command | Does |
+|---|---|
+| `npm run test` | Vitest (watch mode locally, single run in CI) |
+| `npm run type-check` | vue-tsc |
+| `npm run lint` | Oxlint + ESLint (auto-fixes) |
+| `npm run build` | Type-check + production build into `frontend/dist/` |
+| `npm run gen:api` | Regenerate `src/api/schema.d.ts` from the running API's `/openapi.json` |
 
 Two views over one shared state, switchable without reloading data:
 
