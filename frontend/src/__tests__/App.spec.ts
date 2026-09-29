@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/vue'
+import { flushPromises } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createMemoryHistory } from 'vue-router'
@@ -56,7 +57,7 @@ describe('App', () => {
     await renderAppAt('/test-portfolio/list/ticker/AAA', testPortfolioApi().api)
 
     expect(await screen.findByRole('heading', { name: 'AAA' })).toBeTruthy()
-    expect(screen.getByText(/List view: 3 positions/)).toBeTruthy()
+    expect(screen.getByText('Showing 3 of 3')).toBeTruthy()
   })
 
   it('keeps the query when switching between list and city', async () => {
@@ -69,6 +70,30 @@ describe('App', () => {
     await screen.findByText(/City view/)
 
     expect(router.currentRoute.value.fullPath).toBe('/test-portfolio/city?sector=Technology')
+  })
+
+  it('applies the filters in the URL to the list', async () => {
+    await renderAppAt('/test-portfolio/list?sector=Technology', testPortfolioApi().api)
+
+    expect(await screen.findByText('Showing 1 of 3')).toBeTruthy()
+  })
+
+  it('records a column sort in the URL', async () => {
+    const router = await renderAppAt('/test-portfolio/list', testPortfolioApi().api)
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Name' }))
+    await flushPromises()
+
+    expect(router.currentRoute.value.fullPath).toBe('/test-portfolio/list?sort=name')
+  })
+
+  it('opens the drawer for a clicked row, keeping the sort and filters', async () => {
+    const router = await renderAppAt('/test-portfolio/list?sort=-weight', testPortfolioApi().api)
+
+    await fireEvent.click(await screen.findByRole('row', { name: /Beta Holdings/ }))
+    await screen.findByRole('heading', { name: 'BBB' })
+
+    expect(router.currentRoute.value.fullPath).toBe('/test-portfolio/list/ticker/BBB?sort=-weight')
   })
 
   it('says so when the universe does not exist', async () => {

@@ -44,9 +44,9 @@ Full reasoning lives in the grill transcript; this is a reference card.
 | Testing | Vitest + `@testing-library/vue`; behavioural names; inject fakes; mutation-verify |
 | CI | GitHub Actions — one workflow, backend job + frontend job |
 | Prod serving | Deferred until deployment. Likely FastAPI serving `frontend/dist` (same-origin), with a fallback to `index.html` for deep links |
-| List | All columns visible + TanStack Table + TanStack Virtual + single-column sort |
+| List | All columns visible; TanStack Table v9 for sorting + rendering; filtering is a shared pure function (`filterPositions`, also used by the city); single-column sort; virtual scrolling only when a real portfolio needs it; no pagination (grouping by asset class via v9 later) |
 | List filters | Sector multi-select chips + ticker/name substring; no metric range filters |
-| URL params | `?sort=-beta_1y&sector=Technology,Financials&q=aapl&height=one_year_return&color=day_change` |
+| URL params | `?sort=-beta_1y&sector=Technology&sector=Financials&q=aapl&height=one_year_return&color=day_change` (repeated `sector=` params) |
 | Popup layout | Right-side drawer, stacked sections (header / metrics / fundamentals / live) |
 | Loading UX | `<Suspense>` for boot; manual `{loading, error, data}` refs per store thereafter |
 | Formatting | `src/lib/format.ts`, `Intl.NumberFormat('en-US', …)`, driven by `metric.unit` |
@@ -334,48 +334,41 @@ row-click that opens a placeholder drawer route.
 
 **Deliverables:**
 
-- `src/views/ListView.vue` — hosts the table + filter bar + drawer outlet
-- `src/components/list/FilterBar.vue` — sector multi-select chips (shadcn
-  Toggle group) + ticker/name search input (shadcn Input, debounced ~200ms).
-  Reads/writes URL via `useQueryFilters`.
-- `src/components/list/PositionsTable.vue` — TanStack Table + TanStack Virtual:
-  - Columns: ticker, name, sector, weight, then one column per metric
-    (definitions pulled from `useUniverseStore().metricsCatalogue`)
-  - Single-column sort, driven by `useQuerySort`
-  - Filters applied before sort (composable — a plain function over positions)
-  - Row click → `router.push({ name: 'list-ticker', params: { universeId, ticker }, query: route.query })`
-    (query preserved so sort/filter survive drawer navigation)
-  - Cells: `<MetricCell :value :unit>` — dispatches to `formatByUnit`; null
-    shows `—`
-- `src/components/list/MetricCell.vue` — single-line, right-aligned for
-  numbers, `tabular-nums` for column alignment
-- Row highlight when its ticker is the selected drawer route
-- Tests:
-  - `PositionsTable.spec.ts` — behavioural: sorting by beta desc puts highest
-    beta first; searching "AAP" narrows to matching tickers; clicking a row
-    pushes the expected route (real router with memory history).
-  - `FilterBar.spec.ts` — sector chip toggles URL param; search input debounces.
-  - Fixtures live in `src/__tests__/fixtures.ts` — hand-built `Position` records with
-    known metric values.
+- `src/lib/positions.ts` — `filterPositions(positions, { sectors, search })`
+  (shared with the city), `sectorsIn(positions)` (alphabetical, Unclassified
+  last), `sectorOf`, `UNCLASSIFIED`. Types live next to their functions (no
+  `src/types/`).
+- `src/composables/useQueryState.ts` — `useQuerySort()` (TanStack
+  `SortingState` ↔ `?sort=-beta_1y`) and `useQueryFilters()` (`sectors` ↔
+  repeated `?sector=`, `search` ↔ `?q=`). Setters `router.replace` and keep
+  other params.
+- `src/components/list/PositionsTable.vue` — TanStack Table v9 (`useTable`,
+  column helper, `rowSortingFeature`). Columns: ticker, name, sector, weight,
+  then one per catalogue metric (built once; the catalogue is loaded before
+  the list shows). Controlled sort via `v-model:sorting`; missing values sort
+  last either way; no sort removal. Emits `select(ticker)`; marks the selected
+  row (`aria-selected`). Numbers right-aligned with `tabular-nums`. No router
+  or store: props in, events out.
+- `src/components/list/FilterBar.vue` — search input (keeps its own text so
+  keystrokes aren't lost while the URL updates; no debounce needed) + sector
+  chips (`aria-pressed`). `v-model:sectors`, `v-model:search`.
+- `src/views/ListView.vue` — wires URL state → `filterPositions` → table,
+  "Showing N of M", row click → `list-ticker` route keeping the query.
+- Plain Tailwind markup; shadcn components only when one earns its place.
+
+**Tests:** `positions.spec.ts`, `useQueryState.spec.ts` (real router, memory
+history), `PositionsTable.spec.ts`, `FilterBar.spec.ts`, plus `App.spec.ts`
+cases for URL filters, header sort → URL, row click → drawer with query kept.
+Mutation-verified (Part A: 14 bugs, Part B: 19).
 
 **Done when:**
 
-- Browser: `/spy/list` shows all 500 rows, sort works, filter works, row-click
-  navigates to `/spy/list/ticker/AAPL` (drawer still placeholder)
-- Refreshing on `/spy/list/ticker/AAPL?sort=-beta_1y&sector=Technology` preserves
-  everything
-- Virtualised scroll stays smooth (visually verify — no jank at 500 rows)
-- All list-related tests pass
+- Browser: `/spy/list` shows all rows, sort works (missing values last),
+  chips and search filter, row click opens `/spy/list/ticker/AAPL` with the
+  query kept, refresh restores everything
+- Scrolling all ~500 rows feels smooth (if not, add `@tanstack/vue-virtual`)
 - Contract: the columns rendered exactly match `/metrics` output — if the
   backend adds a metric, this table shows it without code changes
-
-**Checkpoints:**
-
-1. `PositionsTable.vue` — TanStack setup, column defs, sort wiring
-2. `FilterBar.vue`
-3. Row-click + selection highlighting
-4. Tests
-5. Manual browser check
 
 ---
 
@@ -593,7 +586,9 @@ Called out so future-me doesn't wonder whether they were forgotten:
 - **Portfolio-import mode.** Roadmap item. The UI is built to accept it — see
   "Universe-agnostic by design".
 - **Persistence layer (SQLite).** Deliberately after the frontend, per
-  `CLAUDE.md`.
+  `CLAUDE.md`. Follow-up it enables: stale-while-revalidate (serve the stored
+  snapshot at once, rebuild in the background) + a daily pre-warm, so no
+  visitor ever waits for the cold build (~8s today).
 - **Cross-metric filters (range sliders).** Sorting covers the "show me the
   extremes" use case.
 - **Roads as relationship overlays.** Corridors are reserved in the layout,
