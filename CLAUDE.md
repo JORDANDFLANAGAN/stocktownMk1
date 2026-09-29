@@ -12,7 +12,7 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Metric layer: complete.** 7 price-based metrics in `services/metrics/`, computed from a single Alpaca fetch. Full S&P 500 × 7 metrics ≈ 5s (fetch; the maths is ~0.2s). Preview with `uv run python -m stocktown metrics [TICKERS... | --spy]`. Verified: beta of VOO/IVV vs SPY ≈ 1.00.
 
-**Tests:** 77 backend (pytest, ~0.7s) + 53 frontend (Vitest), behavioural and mutation-checked.
+**Tests:** 77 backend (pytest, ~0.7s) + 57 frontend (Vitest), behavioural and mutation-checked.
 
 **Tooling: uv.** `uv sync` to set up, `uv run …` to run, `uv add [--dev] <pkg>` for dependencies. `uv.lock` pins versions and is committed. Dev dependencies live in `[dependency-groups] dev` in `pyproject.toml`.
 
@@ -22,7 +22,7 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Live popup stream (Phase B): complete.** `WS /live?ticker=` sends the latest bar immediately, then minute bars. `LiveBarHub` (`services/live.py`) shares Alpaca's ONE allowed WebSocket connection across all popups: ref-counted per-ticker subscriptions, lazy connect, idle disconnect after 60s, reconnect + resubscribe with backoff, bounded per-viewer queues (drop oldest). `AssetCatalogue` (`services/assets.py`) resolves any ticker spelling for both popup endpoints. Verified live against Alpaca and a real uvicorn server.
 
-**Frontend: in progress** — Vue 3 + TypeScript + Vite in `frontend/`, following `FrontendPlan.md` (phased plan + global decisions; read it before frontend work). Phase 0 (scaffold, Tailwind, shadcn-vue, CI), Phase 1 (typed API client, live message parser), Phase 2 (stores, live-bar composable) Phase 3 (routes, layout shell, formatters) and Phase 4 (list view) done. Next: Phase 5 (drawer).
+**Frontend: in progress** — Vue 3 + TypeScript + Vite in `frontend/`, following `FrontendPlan.md` (phased plan + global decisions; read it before frontend work). Phase 0 (scaffold, Tailwind, shadcn-vue, CI), Phase 1 (typed API client, live message parser), Phase 2 (stores, live-bar composable) Phase 3 (routes, layout shell, formatters) and Phase 4 (list view) done. Phase 5 (drawer) in progress: shell done (shadcn Sheet, open/close routing); next: header (live price, day change).
 
 **Not yet built:** DB persistence (deliberately after the frontend).
 
@@ -78,7 +78,7 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 - **Verify value by mutation.** When adding tests, inject the bugs they claim to catch and confirm they fail. (Found one weak test this way: periodic synthetic returns hid a date-misalignment bug — test data now uses seeded irregular returns.)
 - **pytest config:** `--import-mode=importlib`, `pythonpath = ["."]` — no `__init__.py` needed in `tests/`. `pytest-timeout` (10s) so a hanging test fails instead of blocking. Async tests: `@pytest.mark.anyio` (backend fixed to asyncio in `tests/conftest.py`).
 - **`TestClient` ≠ uvicorn for WebSockets.** It cancels handlers when the client leaves (uvicorn doesn't — handlers must detect disconnect themselves) and reports close codes sent before `accept()` (uvicorn turns those into HTTP 403). WebSocket work is only "done" after a check against a real server with a real client.
-- **Frontend:** Vitest + Testing Library. Fakes via `fakeApi`/`piniaWith` (`src/__tests__/fakeApi.ts`) and injected seams (`createApi({ fetch })`, `useLiveBar(ticker, openSocket)`, `createAppRouter(memoryHistory)`). Fakes behave like the real thing (the `FakeSocket` fires `onclose` after `close()`, which is what caught a bug). `flushPromises()` after navigation. UI is finally confirmed by the user in their own browser.
+- **Frontend:** Vitest + Testing Library. Fakes via `fakeApi`/`piniaWith` (`src/__tests__/fakeApi.ts`) and injected seams (`createApi({ fetch })`, `useLiveBar(ticker, openSocket)`, `createAppRouter(memoryHistory)`); whole-app specs via `renderAppAt`/`testPortfolioApi` (`src/__tests__/renderApp.ts`). Fakes behave like the real thing (the `FakeSocket` fires `onclose` after `close()`, which is what caught a bug). `flushPromises()` after navigation. UI is finally confirmed by the user in their own browser.
 - **Fakes must actually exercise the failure path.** Twice a test passed against the bug it was named for because the fake never produced the condition (every ticker had bars; periodic returns hid misalignment). The mutation check is what caught both.
 
 ## Working preferences (learned from prior sessions — follow these)
@@ -101,7 +101,7 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 
 ## What's next (in order)
 
-1. **Frontend** (user priority: a somewhat-functioning frontend before persistence): continue `FrontendPlan.md` at Phase 5 (drawer), then Phase 6 (city). Later from the list: column picker, CSV export, portfolio columns, select rows → highlight in city.
+1. **Frontend** (user priority: a somewhat-functioning frontend before persistence): continue `FrontendPlan.md` at Phase 5 (drawer: header next), then Phase 6 (city). Later from the list: column picker, CSV export, portfolio columns, select rows → highlight in city.
 2. **Persistence** (`persistence/`): SQLite for MVP. Replaces the in-memory snapshot; daily bars for lookback; historical minute bars (REST, after the close) for replay; metric values cached **per ticker**.
 3. **Provider parser tests** (optional, small): `extract_pe_ratio`, SPY workbook parsing, `normalise_ticker`.
 

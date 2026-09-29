@@ -109,10 +109,11 @@ the URL updates).
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 53 frontend (Vitest) + 77 backend, all mutation-verified.
+Tests so far: 57 frontend (Vitest) + 77 backend, all mutation-verified.
 Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`),
-`src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`); component specs render
-with Testing Library and wait for navigation with `flushPromises`.
+`src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),
+`src/__tests__/renderApp.ts` (`renderAppAt`, `testPortfolioApi`); component
+specs render with Testing Library and wait for navigation with `flushPromises`.
 
 ---
 
@@ -123,6 +124,11 @@ fundamentals and the latest bar. The same drawer serves the city later.
 
 **Prerequisites:** Phase 4 done. (Finnhub's dividend yield is a percent;
 `services/instruments.py` already converts it to a fraction.)
+
+**Progress:** shell done — modal Sheet open while its route is; closing
+returns to the parent view (`route.matched`) with the query kept; header
+shows name + sector, or "Not in {universe}". `shadcn-vue add` also inserts
+a Google Fonts `@import` into `main.css` — delete it (Inter is self-hosted).
 
 **Deliverables:**
 
