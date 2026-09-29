@@ -7,6 +7,7 @@ import { useLiveBar } from '@/composables/useLiveBar'
 import { useUniverseStore } from '@/stores/universe'
 import CityMetricsSection from './CityMetricsSection.vue'
 import DrawerHeader from './DrawerHeader.vue'
+import FundamentalsSection from './FundamentalsSection.vue'
 
 const props = defineProps<{ ticker: string }>()
 
@@ -47,12 +48,13 @@ function close(): void {
         :session-date="store.universe?.session_date ?? null"
         :bar="bar"
       />
-      <div v-if="position" class="flex-1 overflow-y-auto px-4 pb-4">
+      <div v-if="position" class="flex flex-1 flex-col gap-6 overflow-y-auto px-4 pb-4">
         <CityMetricsSection
           :position="position"
           :metrics="store.metricsCatalogue"
           :session-date="store.universe?.session_date ?? null"
         />
+        <FundamentalsSection :ticker="ticker" />
       </div>
     </SheetContent>
   </Sheet>

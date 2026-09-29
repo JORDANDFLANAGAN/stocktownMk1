@@ -1,4 +1,4 @@
-import type { MetricInfo, Universe } from '@/api/client'
+import type { Instrument, MetricInfo, Universe } from '@/api/client'
 
 /**
  * Deliberately not the S&P 500: an unclassified position and a non-equity
@@ -58,3 +58,13 @@ export const TEST_CATALOGUE: MetricInfo[] = [
     signed: false,
   },
 ]
+
+/** AAA's fundamentals, with round numbers so the formatted values are easy to check. */
+export const TEST_INSTRUMENT: Instrument = {
+  ticker: 'AAA',
+  name: 'Alpha Corp',
+  pe_ratio: 25,
+  market_cap_usd: 1_500_000_000_000,
+  dividend_yield: 0.005,
+  earnings_yield: 0.04,
+}

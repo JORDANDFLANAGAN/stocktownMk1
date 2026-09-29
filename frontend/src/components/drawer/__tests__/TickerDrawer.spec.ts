@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/vue'
+import { fireEvent, screen, within } from '@testing-library/vue'
 import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
@@ -48,6 +48,14 @@ describe('TickerDrawer', () => {
     expect(metrics.textContent).toContain('+1.2%')
     expect(metrics.textContent).toContain('Beta (1y)')
     expect(metrics.textContent).toContain('1.30×')
+  })
+
+  it('loads the fundamentals of the ticker it opens on', async () => {
+    await renderAppAt('/test-portfolio/list/ticker/AAA', testPortfolioApi().api)
+
+    const fundamentals = await screen.findByRole('region', { name: 'Fundamentals' })
+
+    expect(await within(fundamentals).findByText('$1.5T')).toBeTruthy()
   })
 
   it('says so when the ticker is not in the universe', async () => {

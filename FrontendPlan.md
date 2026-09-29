@@ -111,8 +111,9 @@ long names truncated with the full name on hover.
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 80 frontend (Vitest) + 77 backend, all mutation-verified.
-Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`, `TEST_CATALOGUE`),
+Tests so far: 89 frontend (Vitest) + 77 backend, all mutation-verified.
+Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`, `TEST_CATALOGUE`,
+`TEST_INSTRUMENT`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),
 `src/__tests__/renderApp.ts` (`renderAppAt`, `testPortfolioApi`; always
 provides fake sockets), `src/__tests__/fakeSocket.ts` (`FakeSocket`,
@@ -140,6 +141,11 @@ otherwise last close + `day_change` ("Close, {date}"); `formatPrice`;
 `CityMetricsSection.vue` lists every catalogue metric ("At the close,
 {date}", since they're from the snapshot even while the header is live);
 `formatMetricValue(value, metric)` puts "+" on signed metrics, in the table too.
+Fundamentals done — `FundamentalsSection.vue` fetches once the drawer has
+stayed on a ticker for 300 ms (non-modal switching makes flicking through
+rows cheap; Finnhub is 60/min), nothing if closed sooner; placeholder / 404
+"No fundamentals" / 503 "unavailable" + Retry; `formatCompactMoney`,
+`formatOrDash`.
 
 **Deliverables:**
 

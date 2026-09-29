@@ -2,14 +2,14 @@ import { render } from '@testing-library/vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory } from 'vue-router'
 
-import type { Api } from '@/api/client'
+import { ApiError, type Api } from '@/api/client'
 import App from '@/App.vue'
 import { API_KEY } from '@/composables/useApi'
 import { OPEN_SOCKET_KEY, type OpenSocket } from '@/composables/useLiveBar'
 import { createAppRouter } from '@/router'
 import { fakeApi } from './fakeApi'
 import { recordingSockets } from './fakeSocket'
-import { TEST_CATALOGUE, TEST_PORTFOLIO } from './fixtures'
+import { TEST_CATALOGUE, TEST_INSTRUMENT, TEST_PORTFOLIO } from './fixtures'
 
 /**
  * Renders the whole app at a URL, wired like main.ts but with memory history, the given Api and
@@ -31,7 +31,10 @@ export async function renderAppAt(
   return router
 }
 
-/** An Api serving TEST_PORTFOLIO and TEST_CATALOGUE, recording which universes were requested. */
+/**
+ * An Api serving TEST_PORTFOLIO, TEST_CATALOGUE and AAA's fundamentals (other tickers: 404),
+ * recording which universes were requested.
+ */
 export function testPortfolioApi() {
   const requestedUniverses: string[] = []
   const api = fakeApi({
@@ -40,6 +43,10 @@ export function testPortfolioApi() {
       return TEST_PORTFOLIO
     },
     fetchMetrics: async () => TEST_CATALOGUE,
+    fetchInstrument: async (ticker) => {
+      if (ticker !== TEST_INSTRUMENT.ticker) throw new ApiError(404, null)
+      return TEST_INSTRUMENT
+    },
   })
   return { api, requestedUniverses }
 }

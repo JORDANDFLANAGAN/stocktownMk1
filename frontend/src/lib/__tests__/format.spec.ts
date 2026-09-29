@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatMetricValue, formatPercent, formatPrice, formatRatio } from '../format'
+import {
+  formatCompactMoney,
+  formatMetricValue,
+  formatPercent,
+  formatPrice,
+  formatRatio,
+} from '../format'
 
 const MINUS = '−' // U+2212, not the hyphen on the keyboard
 
@@ -31,6 +37,15 @@ describe('formatPrice', () => {
   it('shows dollars and cents with thousands separators', () => {
     expect(formatPrice(185.2)).toBe('$185.20')
     expect(formatPrice(1234.567)).toBe('$1,234.57')
+  })
+})
+
+describe('formatCompactMoney', () => {
+  it('shortens large amounts to three significant figures', () => {
+    expect(formatCompactMoney(4_961_438_000_000)).toBe('$4.96T')
+    expect(formatCompactMoney(375_612_000_000)).toBe('$376B')
+    expect(formatCompactMoney(12_340_000_000)).toBe('$12.3B')
+    expect(formatCompactMoney(850_000_000)).toBe('$850M')
   })
 })
 

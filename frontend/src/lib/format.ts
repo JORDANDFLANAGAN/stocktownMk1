@@ -11,6 +11,18 @@ export function formatPrice(dollars: number): string {
   return PRICE_FORMAT.format(dollars)
 }
 
+const COMPACT_MONEY_FORMAT = new Intl.NumberFormat(LOCALE, {
+  style: 'currency',
+  currency: 'USD',
+  notation: 'compact',
+  maximumSignificantDigits: 3,
+})
+
+/** 4_961_438_000_000 → "$4.96T", 375_612_000_000 → "$376B" */
+export function formatCompactMoney(dollars: number): string {
+  return COMPACT_MONEY_FORMAT.format(dollars)
+}
+
 /** 0.123 → "12.3%". `showPlus` marks gains ("+1.2%"). */
 export function formatPercent(fraction: number, { digits = 1, showPlus = false } = {}): string {
   const options: Intl.NumberFormatOptions = {
@@ -38,12 +50,16 @@ export function formatMetricValue(
   value: number | null,
   metric: Pick<MetricInfo, 'unit' | 'signed'>,
 ): string {
-  if (value === null) {
-    return NO_VALUE
-  }
-  return metric.unit === 'percent'
-    ? formatPercent(value, { showPlus: metric.signed })
-    : formatRatio(value)
+  return formatOrDash(value, (present) =>
+    metric.unit === 'percent'
+      ? formatPercent(present, { showPlus: metric.signed })
+      : formatRatio(present),
+  )
+}
+
+/** Formats a value that may be missing; missing shows as "—". */
+export function formatOrDash(value: number | null, format: (value: number) => string): string {
+  return value === null ? NO_VALUE : format(value)
 }
 
 /** Uses a typographic minus, and never puts a sign on a value that rounds to zero. */
