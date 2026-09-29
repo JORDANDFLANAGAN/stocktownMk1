@@ -6,7 +6,7 @@ import { TEST_PORTFOLIO } from '@/__tests__/fixtures'
 import { useUniverseStore } from '../universe'
 
 const CATALOGUE: MetricInfo[] = [
-  { key: 'day_change', label: 'Day change', unit: 'percent', scale: 'diverging', refresh: 'daily' },
+  { key: 'day_change', label: 'Day change', unit: 'percent', scale: 'linear', refresh: 'daily' },
 ]
 
 describe('useUniverseStore', () => {

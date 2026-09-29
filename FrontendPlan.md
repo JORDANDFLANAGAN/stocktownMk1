@@ -289,54 +289,39 @@ number formatting — but the list is still a placeholder.
 
 **Deliverables:**
 
-- `src/router/index.ts` — routes:
-  - `/` → redirect to `/spy/list` (`DEFAULT_UNIVERSE_ID`)
-  - `/:universeId/list` (name `list`, component: `ListView`)
-  - `/:universeId/list/ticker/:ticker` (name `list-ticker`, component:
-    `ListView`, drawer slot receives ticker)
-  - `/:universeId/city` (name `city`, component: `CityView`)
-  - `/:universeId/city/ticker/:ticker` (name `city-ticker`, component:
-    `CityView`, drawer slot receives ticker)
-- `src/App.vue` — top-level layout: header (app title, view switcher), main
-  content slot (router-view), drawer slot (router-view name="drawer"). Wraps
-  the main router-view in `<Suspense>` for boot fetch. Suspense fallback: a
-  full-screen skeleton (shadcn Skeleton).
-- `src/composables/useBootFetch.ts` — awaited in async setup of a top-level
-  wrapper component; calls `useUniverseStore().load(route.params.universeId)`. Suspense hooks off this.
-- `src/composables/useQuerySort.ts`, `useQueryFilters.ts`, `useQueryMetrics.ts`
-  — read/write URL query params for sort, filters, and metric picks. Return
-  typed refs. Two-way sync with `useRoute`/`useRouter`.
-- `src/types/` (moved from Phase 1) — `SortSpec`, `FilterSpec`,
-  `MetricSelection` (which metric drives height/colour), written alongside
-  the composables above. Every field justified by a consumer.
-- `src/lib/format.ts` — pure functions:
-  - `formatPercent(x: number, digits = 1)` → `"12.3%"`
-  - `formatSignedPercent(x: number, digits = 1)` → `"+1.2%"` / `"−0.4%"`
-    (uses U+2212 minus, not hyphen, for typographic correctness)
-  - `formatRatio(x: number, digits = 2)` → `"1.05×"`
-  - `formatCompactMoney(x: number)` → `"$1.2B"` (uses `Intl.NumberFormat`
-    with `notation: "compact"`)
-  - `formatByUnit(unit: "percent" | "ratio", value: number | null, opts?)` —
-    dispatch by metric unit, returns `"—"` for `null`
-- `src/lib/__tests__/format.spec.ts` — behavioural tests for each formatter, edge cases
-  (0, negative, null, very large, very small).
+- `src/router/index.ts` — `createAppRouter(history)` (browser history in
+  `main.ts`, memory history in tests). `DEFAULT_UNIVERSE_ID` lives here.
+  - `/` → redirect to `/spy/list`
+  - `/:universeId` → `UniverseLayout`, children:
+    - `list` (name `list`, `ListView`) → child `ticker/:ticker` (name
+      `list-ticker`, `TickerDrawer`, `props: true`)
+    - `city` (name `city`, `CityView`) → child `ticker/:ticker` (name
+      `city-ticker`, `TickerDrawer`, `props: true`)
+  - The drawer is a nested child route rendered by the view's own
+    `<RouterView />`, so the view stays mounted underneath it.
+- `src/views/UniverseLayout.vue` — header (universe name + "Prices as of",
+  List/City links that carry the query over), then "Loading…" / not-found /
+  "Couldn't load — Try again" / the view. Loads via
+  `watch(universeId, load, { immediate: true })` — no `<Suspense>` (still
+  experimental in Vue) and no `useBootFetch`.
+- `ListView.vue`, `CityView.vue`, `components/drawer/TickerDrawer.vue` —
+  placeholders until Phases 4–6.
+- `src/lib/format.ts` — `formatPercent(x, { digits, showPlus })`,
+  `formatRatio(x, digits)`, `formatMetricValue(value, unit)` (`"—"` for null).
+  Typographic minus (U+2212); a value that rounds to zero never gets a sign.
+- Moved to their first consumer: URL-sync composables + `src/types/` (sort,
+  filters → Phase 4; metric picks → Phase 6); `formatCompactMoney` → Phase 5.
 
-**Done when:**
+**Tests:** `src/__tests__/App.spec.ts` renders the whole app at a URL (real
+router, memory history, fake Api): root redirect, universe named in the URL
+loaded and used as the title, deep link to a ticker, query kept across views,
+unknown universe, retry after failure. `src/lib/__tests__/format.spec.ts`.
+Component specs call `afterEach(cleanup)` (Vitest globals are off).
 
-- App boots, shows a header + placeholder list/city view + no drawer
-- Navigating to `/spy/list/ticker/AAPL` re-enters `ListView` with drawer route
-  populated (drawer content is still a placeholder)
-- Sort/filter/metric composables round-trip through the URL — updating a ref
-  updates the URL, and pasting a URL populates the refs
-- All formatter tests pass; mutation-verify the sign handling on
-  `formatSignedPercent`
-
-**Checkpoints:**
-
-1. Route table + `App.vue` shell
-2. URL-sync composables + tests
-3. `format.ts` + tests
-4. Live in browser: boot, deeplink, view-switch all work
+**Done when:** all of the above pass and are mutation-verified (16 bugs
+caught), and the manual browser checklist passes: root redirect + S&P 500
+header, City link keeps the query, deep link opens the drawer, unknown
+universe message, retry after restarting the backend.
 
 ---
 
