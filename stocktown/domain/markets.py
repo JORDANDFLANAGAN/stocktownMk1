@@ -9,6 +9,11 @@ from zoneinfo import ZoneInfo
 US_MARKET_TIMEZONE: Final = ZoneInfo("America/New_York")
 
 
+def to_us_market_time(instant: datetime) -> datetime:
+    """The same instant on New York's clock, with its UTC offset (for display)."""
+    return instant.astimezone(US_MARKET_TIMEZONE)
+
+
 def us_session_date(instant: datetime) -> date:
     """The US trading day an instant belongs to (its New York calendar date)."""
-    return instant.astimezone(US_MARKET_TIMEZONE).date()
+    return to_us_market_time(instant).date()

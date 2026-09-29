@@ -68,6 +68,19 @@ def test_bars_are_dated_by_the_new_york_trading_day_not_the_utc_date():
     assert live_bar["session_date"] == "2026-09-25"
 
 
+def test_bars_carry_their_minute_on_the_new_york_clock_for_display():
+    friday_evening_in_new_york = minute_bar(
+        "AAPL", close=341.0, minute=datetime(2026, 9, 26, 1, 30, tzinfo=timezone.utc)
+    )
+    alpaca = FakeAlpaca(scripted_bars=[friday_evening_in_new_york])
+
+    with client_for(alpaca).websocket_connect("/api/live?ticker=aapl") as popup:
+        popup.receive_json()  # the latest bar, sent first
+        live_bar = popup.receive_json()
+
+    assert live_bar["minute_market"] == "2026-09-25T21:30:00-04:00"
+
+
 def test_live_bars_still_arrive_when_the_latest_price_cannot_be_loaded():
     alpaca = FakeAlpaca(scripted_bars=[MONDAYS_FIRST_MINUTE])
 
