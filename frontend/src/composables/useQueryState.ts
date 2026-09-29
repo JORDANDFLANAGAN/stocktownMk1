@@ -7,6 +7,7 @@ import { useRoute, useRouter, type LocationQueryRaw, type LocationQueryValue } f
  *   ?sort=-beta_1y            sort by beta, highest first (no "-" = lowest first)
  *   &sector=Technology&sector=Utilities
  *   &q=apple
+ *   &cols=one_year_return&cols=beta_1y   metric columns shown (absent = the defaults)
  * Each setter replaces the URL (no new history entry) and keeps the other params.
  */
 
@@ -34,6 +35,17 @@ export function useQueryFilters() {
   })
 
   return { sectors, search }
+}
+
+export function useQueryColumns(defaults: string[]): WritableComputedRef<string[]> {
+  const route = useRoute()
+  const replaceQuery = useReplaceQuery()
+
+  return computed({
+    // absent = never chosen, so the defaults; an empty `cols=` = every metric column hidden
+    get: () => (route.query.cols === undefined ? defaults : allValues(route.query.cols)),
+    set: (chosen) => replaceQuery({ cols: chosen.length > 0 ? chosen : '' }),
+  })
 }
 
 // Starts from the query at call time: two setters called in the same tick would each start from

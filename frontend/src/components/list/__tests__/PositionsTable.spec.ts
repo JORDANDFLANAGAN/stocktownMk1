@@ -2,33 +2,27 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/vue
 import type { SortingState } from '@tanstack/vue-table'
 import { describe, expect, it } from 'vitest'
 
-import type { MetricInfo } from '@/api/client'
-import { TEST_PORTFOLIO } from '@/__tests__/fixtures'
+import { TEST_CATALOGUE, TEST_PORTFOLIO } from '@/__tests__/fixtures'
 import PositionsTable from '../PositionsTable.vue'
 
-const METRICS: MetricInfo[] = [
-  {
-    key: 'day_change',
-    label: 'Day change',
-    unit: 'percent',
-    scale: 'linear',
-    refresh: 'daily',
-    signed: true,
-  },
-  {
-    key: 'beta_1y',
-    label: 'Beta (1y)',
-    unit: 'ratio',
-    scale: 'linear',
-    refresh: 'daily',
-    signed: false,
-  },
-]
+const EVERY_METRIC = TEST_CATALOGUE.map((metric) => metric.key)
 
-function renderTable(props: { sorting?: SortingState; selectedTicker?: string } = {}) {
+function renderTable(
+  props: { visibleMetrics?: string[]; sorting?: SortingState; selectedTicker?: string } = {},
+) {
   return render(PositionsTable, {
-    props: { positions: TEST_PORTFOLIO.positions, metrics: METRICS, sorting: [], ...props },
+    props: {
+      positions: TEST_PORTFOLIO.positions,
+      metrics: TEST_CATALOGUE,
+      visibleMetrics: EVERY_METRIC,
+      sorting: [],
+      ...props,
+    },
   })
+}
+
+function headerTexts(): (string | undefined)[] {
+  return screen.getAllByRole('columnheader').map((header) => header.textContent?.trim())
 }
 
 /** The ticker of each body row, top to bottom. */
@@ -41,8 +35,25 @@ describe('PositionsTable', () => {
   it('has the fixed columns, then one column per metric in catalogue order', () => {
     renderTable()
 
-    const headers = screen.getAllByRole('columnheader').map((header) => header.textContent?.trim())
-    expect(headers).toEqual(['Ticker', 'Name', 'Sector', 'Weight', 'Day change', 'Beta (1y)'])
+    expect(headerTexts()).toEqual(['Ticker', 'Name', 'Sector', 'Weight', 'Day change', 'Beta (1y)'])
+  })
+
+  it('shows only the chosen metric columns, headers and cells alike', () => {
+    renderTable({ visibleMetrics: ['beta_1y'] })
+
+    const bbbRow = screen.getByRole('row', { name: /BBB/ })
+    expect(headerTexts()).toEqual(['Ticker', 'Name', 'Sector', 'Weight', 'Beta (1y)'])
+    expect(
+      within(bbbRow)
+        .getAllByRole('cell')
+        .map((cell) => cell.textContent?.trim()),
+    ).toEqual(['BBB', 'Beta Holdings', 'Unclassified', '30.00%', '—'])
+  })
+
+  it('keeps sorting by a metric whose column is hidden', () => {
+    renderTable({ visibleMetrics: [], sorting: [{ id: 'beta_1y', desc: true }] })
+
+    expect(tickersInOrder()).toEqual(['AAA', 'CCC', 'BBB'])
   })
 
   it('formats each value by its unit and shows missing values as a dash', () => {

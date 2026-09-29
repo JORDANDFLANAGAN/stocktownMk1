@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  columnVisibilityFeature,
   createColumnHelper,
   createSortedRowModel,
   FlexRender,
@@ -18,6 +19,7 @@ import { sectorOf } from '@/lib/positions'
 const props = defineProps<{
   positions: Position[]
   metrics: MetricInfo[]
+  visibleMetrics: string[] // metric keys whose columns are shown
   sorting: SortingState
   selectedTicker?: string
 }>()
@@ -28,8 +30,10 @@ const emit = defineEmits<{
 }>()
 
 const TEXT_COLUMNS = new Set(['ticker', 'name', 'sector'])
+const TRUNCATED_COLUMNS = new Set(['name']) // long names cut short; the full one shows on hover
 
 const features = tableFeatures({
+  columnVisibilityFeature,
   rowSortingFeature,
   sortedRowModel: createSortedRowModel(),
   sortFns: { alphanumeric: sortFn_alphanumeric },
@@ -62,11 +66,18 @@ const table = useTable({
   columns,
   data: toRef(props, 'positions'),
   getRowId: (position: Position) => position.ticker,
-  state: toRef(() => ({ sorting: props.sorting })),
+  // hidden metric columns still exist, so the list can stay sorted by one
+  state: toRef(() => ({ sorting: props.sorting, columnVisibility: metricVisibility() })),
   onSortingChange: (next) =>
     emit('update:sorting', typeof next === 'function' ? next(props.sorting) : next),
   enableSortingRemoval: false,
 })
+
+function metricVisibility(): Record<string, boolean> {
+  return Object.fromEntries(
+    props.metrics.map((metric) => [metric.key, props.visibleMetrics.includes(metric.key)]),
+  )
+}
 
 function ariaSort(direction: false | 'asc' | 'desc') {
   if (direction === false) return 'none'
@@ -104,10 +115,14 @@ function ariaSort(direction: false | 'asc' | 'desc') {
         @keydown.enter="emit('select', row.id)"
       >
         <td
-          v-for="cell in row.getAllCells()"
+          v-for="cell in row.getVisibleCells()"
           :key="cell.id"
           class="px-3 py-1.5 whitespace-nowrap"
-          :class="TEXT_COLUMNS.has(cell.column.id) ? 'text-left' : 'text-right tabular-nums'"
+          :class="[
+            TEXT_COLUMNS.has(cell.column.id) ? 'text-left' : 'text-right tabular-nums',
+            { 'max-w-64 truncate': TRUNCATED_COLUMNS.has(cell.column.id) },
+          ]"
+          :title="TRUNCATED_COLUMNS.has(cell.column.id) ? String(cell.getValue()) : undefined"
         >
           <FlexRender :cell="cell" />
         </td>

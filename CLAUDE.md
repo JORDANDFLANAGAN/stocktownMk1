@@ -12,7 +12,7 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Metric layer: complete.** 7 price-based metrics in `services/metrics/`, computed from a single Alpaca fetch. Full S&P 500 × 7 metrics ≈ 5s (fetch; the maths is ~0.2s). Preview with `uv run python -m stocktown metrics [TICKERS... | --spy]`. Verified: beta of VOO/IVV vs SPY ≈ 1.00.
 
-**Tests:** 77 backend (pytest, ~0.7s) + 64 frontend (Vitest), behavioural and mutation-checked.
+**Tests:** 77 backend (pytest, ~0.7s) + 74 frontend (Vitest), behavioural and mutation-checked.
 
 **Tooling: uv.** `uv sync` to set up, `uv run …` to run, `uv add [--dev] <pkg>` for dependencies. `uv.lock` pins versions and is committed. Dev dependencies live in `[dependency-groups] dev` in `pyproject.toml`.
 
@@ -22,7 +22,7 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Live popup stream (Phase B): complete.** `WS /live?ticker=` sends the latest bar immediately, then minute bars. `LiveBarHub` (`services/live.py`) shares Alpaca's ONE allowed WebSocket connection across all popups: ref-counted per-ticker subscriptions, lazy connect, idle disconnect after 60s, reconnect + resubscribe with backoff, bounded per-viewer queues (drop oldest). `AssetCatalogue` (`services/assets.py`) resolves any ticker spelling for both popup endpoints. Verified live against Alpaca and a real uvicorn server.
 
-**Frontend: in progress** — Vue 3 + TypeScript + Vite in `frontend/`, following `FrontendPlan.md` (phased plan + global decisions; read it before frontend work). Phase 0 (scaffold, Tailwind, shadcn-vue, CI), Phase 1 (typed API client, live message parser), Phase 2 (stores, live-bar composable) Phase 3 (routes, layout shell, formatters) and Phase 4 (list view) done. Phase 5 (drawer) in progress: shell and header (live price, day change) done; next: city metrics section.
+**Frontend: in progress** — Vue 3 + TypeScript + Vite in `frontend/`, following `FrontendPlan.md` (phased plan + global decisions; read it before frontend work). Phase 0 (scaffold, Tailwind, shadcn-vue, CI), Phase 1 (typed API client, live message parser), Phase 2 (stores, live-bar composable) Phase 3 (routes, layout shell, formatters) and Phase 4 (list view, plus a column picker: 1-year return + day change by default, the drawer shows every metric) done. Phase 5 (drawer) in progress: shell and header (live price, day change) done; next: city metrics section.
 
 **Not yet built:** DB persistence (deliberately after the frontend).
 
@@ -102,7 +102,7 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 
 ## What's next (in order)
 
-1. **Frontend** (user priority: a somewhat-functioning frontend before persistence): continue `FrontendPlan.md` at Phase 5 (drawer: city metrics section next), then Phase 6 (city). Later from the list: column picker, CSV export, portfolio columns, select rows → highlight in city.
+1. **Frontend** (user priority: a somewhat-functioning frontend before persistence): continue `FrontendPlan.md` at Phase 5 (drawer: city metrics section next), then Phase 6 (city). Later from the list: CSV export, portfolio columns, select rows → highlight in city.
 2. **Persistence** (`persistence/`): SQLite for MVP. Replaces the in-memory snapshot; daily bars for lookback; historical minute bars (REST, after the close) for replay; metric values cached **per ticker**.
 3. **Provider parser tests** (optional, small): `extract_pe_ratio`, SPY workbook parsing, `normalise_ticker`.
 

@@ -9,7 +9,7 @@ import { OPEN_SOCKET_KEY, type OpenSocket } from '@/composables/useLiveBar'
 import { createAppRouter } from '@/router'
 import { fakeApi } from './fakeApi'
 import { recordingSockets } from './fakeSocket'
-import { TEST_PORTFOLIO } from './fixtures'
+import { TEST_CATALOGUE, TEST_PORTFOLIO } from './fixtures'
 
 /**
  * Renders the whole app at a URL, wired like main.ts but with memory history, the given Api and
@@ -31,7 +31,7 @@ export async function renderAppAt(
   return router
 }
 
-/** An Api serving TEST_PORTFOLIO and recording which universes were requested. */
+/** An Api serving TEST_PORTFOLIO and TEST_CATALOGUE, recording which universes were requested. */
 export function testPortfolioApi() {
   const requestedUniverses: string[] = []
   const api = fakeApi({
@@ -39,7 +39,7 @@ export function testPortfolioApi() {
       requestedUniverses.push(universeId)
       return TEST_PORTFOLIO
     },
-    fetchMetrics: async () => [],
+    fetchMetrics: async () => TEST_CATALOGUE,
   })
   return { api, requestedUniverses }
 }

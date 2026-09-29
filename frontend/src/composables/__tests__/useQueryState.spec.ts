@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { defineComponent } from 'vue'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 
-import { useQueryFilters, useQuerySort } from '../useQueryState'
+import { useQueryColumns, useQueryFilters, useQuerySort } from '../useQueryState'
 
 /** Runs a composable inside a component with a real router opened at `url`. */
 async function useWithRouterAt<T>(url: string, composable: () => T): Promise<[T, Router]> {
@@ -77,5 +77,31 @@ describe('useQueryFilters', () => {
     filters.search.value = ''
     await flushPromises()
     expect(router.currentRoute.value.query).toEqual({ sort: 'ticker' })
+  })
+})
+
+describe('useQueryColumns', () => {
+  const DEFAULTS = ['one_year_return', 'day_change']
+  const useColumns = () => useQueryColumns(DEFAULTS)
+
+  it('shows the default columns until the URL names some', async () => {
+    const [untouched] = await useWithRouterAt('/list', useColumns)
+    const [chosen] = await useWithRouterAt('/list?cols=beta_1y&cols=day_change', useColumns)
+
+    expect(untouched.value).toEqual(DEFAULTS)
+    expect(chosen.value).toEqual(['beta_1y', 'day_change'])
+  })
+
+  it('writes the choice to the URL, and remembers hiding every column', async () => {
+    const [columns, router] = await useWithRouterAt('/list?sort=ticker', useColumns)
+
+    columns.value = ['beta_1y']
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/list?sort=ticker&cols=beta_1y')
+
+    columns.value = []
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/list?sort=ticker&cols=')
+    expect(columns.value).toEqual([])
   })
 })

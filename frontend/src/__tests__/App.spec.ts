@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/vue'
+import { cleanup, fireEvent, screen } from '@testing-library/vue'
 import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
@@ -58,6 +58,34 @@ describe('App', () => {
     await flushPromises()
 
     expect(router.currentRoute.value.fullPath).toBe('/test-portfolio/list?sort=name')
+  })
+
+  it('shows the default metric columns, or the ones named in the URL', async () => {
+    await renderAppAt('/test-portfolio/list', testPortfolioApi().api)
+    expect(await screen.findByRole('columnheader', { name: 'Day change' })).toBeTruthy()
+    expect(screen.queryByRole('columnheader', { name: 'Beta (1y)' })).toBeNull()
+    cleanup()
+
+    await renderAppAt('/test-portfolio/list?cols=beta_1y', testPortfolioApi().api)
+    expect(await screen.findByRole('columnheader', { name: 'Beta (1y)' })).toBeTruthy()
+    expect(screen.queryByRole('columnheader', { name: 'Day change' })).toBeNull()
+  })
+
+  it('adds a ticked metric column to the table and the URL', async () => {
+    const router = await renderAppAt('/test-portfolio/list?sort=name', testPortfolioApi().api)
+
+    await fireEvent.keyDown(await screen.findByRole('button', { name: 'Columns' }), {
+      key: 'Enter',
+    })
+    const betaItem = await screen.findByRole('menuitemcheckbox', { name: 'Beta (1y)' })
+    await fireEvent.click(betaItem)
+    await fireEvent.keyDown(betaItem, { key: 'Escape' }) // close the menu
+    await flushPromises()
+
+    expect(router.currentRoute.value.fullPath).toBe(
+      '/test-portfolio/list?sort=name&cols=day_change&cols=beta_1y',
+    )
+    expect(screen.getByRole('columnheader', { name: 'Beta (1y)' })).toBeTruthy()
   })
 
   it('opens the drawer for a clicked row, keeping the sort and filters', async () => {

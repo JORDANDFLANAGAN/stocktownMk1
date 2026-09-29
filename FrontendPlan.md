@@ -29,11 +29,11 @@ anything here disagrees), `README.md` (setup, commands), `StockTownOutline.md`
 | WS | Hand-written `LiveBar` type + `parseLiveMessage` (`src/api/live.ts`) |
 | DI | `app.provide(API_KEY, createApi())`; stores call `useApi()`. Tests provide fakes |
 | State | Pinia: `useUniverseStore`, `useFundamentalsStore`. Live feed: `useLiveBar` composable owned by the drawer. Everything shareable (view, ticker, sort, filters, metric picks) lives in the URL |
-| URL | `/:universeId/list[/ticker/:ticker]`, `/:universeId/city[/ticker/:ticker]`; query `?sort=-beta_1y&sector=Technology&sector=Financials&q=aapl&height=one_year_return&color=day_change` |
+| URL | `/:universeId/list[/ticker/:ticker]`, `/:universeId/city[/ticker/:ticker]`; query `?sort=-beta_1y&sector=Technology&sector=Financials&q=aapl&cols=beta_1y&height=one_year_return&color=day_change` |
 | Loading UX | Layout watches the URL's universe id and calls `store.load`; skeleton + "Building today's snapshot…" while loading; per-store `{loading, error}` thereafter. No `<Suspense>` (experimental) |
-| List | TanStack Table v9 for sorting + rendering; filtering is the shared pure `filterPositions`; single-column sort; no pagination; virtual scrolling only if a real portfolio needs it; grouping by asset class via v9 later |
+| List | TanStack Table v9 for sorting + rendering; metric columns chosen with a column picker (`?cols=`; default 1-year return + day change, so the table fits the screen — the drawer shows every metric, and serves the city too); filtering is the shared pure `filterPositions`; single-column sort; no pagination; virtual scrolling only if a real portfolio needs it; grouping by asset class via v9 later |
 | List filters | Sector chips + ticker/name search; no metric range filters |
-| Styling | Tailwind v4 + shadcn-vue (`vega`, zinc neutral, teal primary, self-hosted Inter). Plain Tailwind markup until a shadcn component earns its place (e.g. the drawer's Sheet) |
+| Styling | Tailwind v4 + shadcn-vue (`vega`, zinc neutral, teal primary, self-hosted Inter). Plain Tailwind markup until a shadcn component earns its place (the drawer's Sheet, the column picker's DropdownMenu). `shadcn-vue add` inserts a Google Fonts `@import` into `main.css` each time — delete it (Inter is self-hosted) |
 | Formatting | `src/lib/format.ts` (`Intl.NumberFormat('en-US')`, typographic minus), driven by `metric.unit` |
 | Popup | Right-side drawer, nested child route of each view; sections: header / city metrics / fundamentals / live |
 | City | Treemap of treemaps (sector districts → holdings, padding = streets); one `InstancedMesh` of unit boxes; `MapControls`, polar clamp `[15°, 75°]`; palettes plasma (sequential) and RdBu clipped `[0.1, 0.9]` (diverging, from the `signed` flag); hover/select outline. Route lazy-loaded so list-only visits never download Three.js |
@@ -103,14 +103,16 @@ not-found / retry; List/City links carry the query. `format.ts`:
 them if a "reset all" control is ever added); `PositionsTable` (props in,
 events out; one column per catalogue metric; missing values sort last);
 `FilterBar` (the input keeps its own text so keystrokes aren't lost while
-the URL updates).
+the URL updates). Later: `ColumnPicker` + `useQueryColumns` (absent `cols`
+= defaults; empty `cols=` = every metric hidden); hidden columns still sort;
+long names truncated with the full name on hover.
 
 **Backend follow-ups.** `last_close` on positions; `unit`/`scale`/`refresh`
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 64 frontend (Vitest) + 77 backend, all mutation-verified.
-Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`),
+Tests so far: 74 frontend (Vitest) + 77 backend, all mutation-verified.
+Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`, `TEST_CATALOGUE`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),
 `src/__tests__/renderApp.ts` (`renderAppAt`, `testPortfolioApi`; always
 provides fake sockets), `src/__tests__/fakeSocket.ts` (`FakeSocket`,
@@ -132,8 +134,7 @@ returns to the parent view (`route.matched`) with the query kept. Header
 done — `DrawerHeader.vue` + pure `lib/quote.ts` (`headlineQuote`): live
 price vs `last_close` once a bar's `session_date` is after the snapshot's,
 otherwise last close + `day_change` ("Close, {date}"); `formatPrice`;
-`OPEN_SOCKET_KEY` lets tests inject sockets. `shadcn-vue add` also inserts
-a Google Fonts `@import` into `main.css` — delete it (Inter is self-hosted).
+`OPEN_SOCKET_KEY` lets tests inject sockets.
 
 **Deliverables:**
 
@@ -234,7 +235,7 @@ toasts fire on 503s.
 
 - **E2E tests (Playwright)** — until the list and drawer are stable
   (`npm init playwright` + one CI job).
-- **Column picker, CSV export** — roadmap.
+- **CSV export** — roadmap.
 - **Portfolio import** — roadmap; the UI is ready for it.
 - **Persistence (SQLite)** — after the frontend. It enables
   stale-while-revalidate (serve the stored snapshot at once, rebuild in the
