@@ -22,6 +22,13 @@ export default defineConfigWithVueTs(
   vueTsConfigs.recommended,
 
   {
+    // shadcn-vue components are named after the primitive they wrap (Sheet, Button)
+    name: 'app/shadcn-ui',
+    files: ['src/components/ui/**/*.vue'],
+    rules: { 'vue/multi-word-component-names': 'off' },
+  },
+
+  {
     ...pluginVitest.configs.recommended,
     files: ['src/**/__tests__/*'],
   },

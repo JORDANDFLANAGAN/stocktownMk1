@@ -1,36 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/vue'
+import { fireEvent, screen } from '@testing-library/vue'
 import { flushPromises } from '@vue/test-utils'
-import { createPinia } from 'pinia'
 import { describe, expect, it } from 'vitest'
-import { createMemoryHistory } from 'vue-router'
 
-import { ApiError, type Api } from '@/api/client'
-import { API_KEY } from '@/composables/useApi'
-import { createAppRouter } from '@/router'
-import App from '@/App.vue'
+import { ApiError } from '@/api/client'
 import { fakeApi } from './fakeApi'
 import { TEST_PORTFOLIO } from './fixtures'
-
-/** Renders the whole app at a URL, wired like main.ts but with memory history and the given Api. */
-async function renderAppAt(url: string, api: Api) {
-  const router = createAppRouter(createMemoryHistory())
-  await router.push(url)
-  render(App, { global: { plugins: [router, createPinia()], provide: { [API_KEY]: api } } })
-  return router
-}
-
-/** An Api serving TEST_PORTFOLIO and recording which universes were requested. */
-function testPortfolioApi() {
-  const requestedUniverses: string[] = []
-  const api = fakeApi({
-    fetchUniverse: async (universeId) => {
-      requestedUniverses.push(universeId)
-      return TEST_PORTFOLIO
-    },
-    fetchMetrics: async () => [],
-  })
-  return { api, requestedUniverses }
-}
+import { renderAppAt, testPortfolioApi } from './renderApp'
 
 describe('App', () => {
   it('opens the default universe as a list at the root URL', async () => {
