@@ -109,10 +109,12 @@ the URL updates).
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 57 frontend (Vitest) + 77 backend, all mutation-verified.
+Tests so far: 64 frontend (Vitest) + 77 backend, all mutation-verified.
 Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),
-`src/__tests__/renderApp.ts` (`renderAppAt`, `testPortfolioApi`); component
+`src/__tests__/renderApp.ts` (`renderAppAt`, `testPortfolioApi`; always
+provides fake sockets), `src/__tests__/fakeSocket.ts` (`FakeSocket`,
+`recordingSockets`); component
 specs render with Testing Library and wait for navigation with `flushPromises`.
 
 ---
@@ -126,8 +128,11 @@ fundamentals and the latest bar. The same drawer serves the city later.
 `services/instruments.py` already converts it to a fraction.)
 
 **Progress:** shell done — modal Sheet open while its route is; closing
-returns to the parent view (`route.matched`) with the query kept; header
-shows name + sector, or "Not in {universe}". `shadcn-vue add` also inserts
+returns to the parent view (`route.matched`) with the query kept. Header
+done — `DrawerHeader.vue` + pure `lib/quote.ts` (`headlineQuote`): live
+price vs `last_close` once a bar's `session_date` is after the snapshot's,
+otherwise last close + `day_change` ("Close, {date}"); `formatPrice`;
+`OPEN_SOCKET_KEY` lets tests inject sockets. `shadcn-vue add` also inserts
 a Google Fonts `@import` into `main.css` — delete it (Inter is self-hosted).
 
 **Deliverables:**

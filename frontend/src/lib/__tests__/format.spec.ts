@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatMetricValue, formatPercent, formatRatio } from '../format'
+import { formatMetricValue, formatPercent, formatPrice, formatRatio } from '../format'
 
 const MINUS = '−' // U+2212, not the hyphen on the keyboard
 
@@ -24,6 +24,13 @@ describe('formatPercent', () => {
   it('never puts a sign on a value that rounds to zero', () => {
     expect(formatPercent(-0.0004)).toBe('0.0%')
     expect(formatPercent(0.0004, { showPlus: true })).toBe('0.0%')
+  })
+})
+
+describe('formatPrice', () => {
+  it('shows dollars and cents with thousands separators', () => {
+    expect(formatPrice(185.2)).toBe('$185.20')
+    expect(formatPrice(1234.567)).toBe('$1,234.57')
   })
 })
 

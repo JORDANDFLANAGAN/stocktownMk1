@@ -1,4 +1,4 @@
-import { onScopeDispose, ref, watch, type Ref } from 'vue'
+import { inject, onScopeDispose, ref, watch, type InjectionKey, type Ref } from 'vue'
 
 import { parseLiveMessage, type LiveBar } from '@/api/live'
 
@@ -19,12 +19,18 @@ const CLOSE_PROVIDER_UNAVAILABLE = 4503
 
 const openBrowserSocket: OpenSocket = (url) => new WebSocket(url)
 
+/** Tests provide a fake under this key; otherwise the browser's WebSocket is used. */
+export const OPEN_SOCKET_KEY: InjectionKey<OpenSocket> = Symbol('OpenSocket')
+
 /**
  * Streams minute bars for the ticker from `WS /api/live`. Follows the ticker when it changes and
  * closes the connection when the calling component goes away. An unexpected drop is retried
  * after 1s, 2s and 4s before giving up.
  */
-export function useLiveBar(ticker: Ref<string>, openSocket: OpenSocket = openBrowserSocket) {
+export function useLiveBar(
+  ticker: Ref<string>,
+  openSocket: OpenSocket = inject(OPEN_SOCKET_KEY, openBrowserSocket),
+) {
   const bar = ref<LiveBar | null>(null)
   const status = ref<LiveStatus>('connecting')
 

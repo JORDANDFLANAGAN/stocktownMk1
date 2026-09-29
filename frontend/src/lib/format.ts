@@ -4,6 +4,13 @@ const LOCALE = 'en-US'
 const MINUS_SIGN = '−' // typographic minus: same width as "+", so columns line up
 const NO_VALUE = '—'
 
+const PRICE_FORMAT = new Intl.NumberFormat(LOCALE, { style: 'currency', currency: 'USD' })
+
+/** 185.2 → "$185.20" */
+export function formatPrice(dollars: number): string {
+  return PRICE_FORMAT.format(dollars)
+}
+
 /** 0.123 → "12.3%". `showPlus` marks gains ("+1.2%"). */
 export function formatPercent(fraction: number, { digits = 1, showPlus = false } = {}): string {
   const options: Intl.NumberFormatOptions = {

@@ -4,6 +4,7 @@ export interface LiveBar {
   type: 'bar'
   ticker: string
   minute_utc: string // ISO 8601, e.g. "2026-09-28T19:59:00Z"
+  session_date: string // the market's trading day for this bar, e.g. "2026-09-28"
   open: number
   high: number
   low: number

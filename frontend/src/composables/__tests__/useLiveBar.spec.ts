@@ -1,54 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
 
-import { useLiveBar, type LiveSocket } from '../useLiveBar'
-
-/** Stands in for the browser WebSocket; the test decides what the server sends and when it drops. */
-class FakeSocket implements LiveSocket {
-  onmessage: ((event: MessageEvent<string>) => void) | null = null
-  onclose: ((event: CloseEvent) => void) | null = null
-  closedByClient = false
-
-  constructor(readonly url: string) {}
-
-  /** Like the browser: closing on purpose still fires `onclose` a moment later. */
-  close(): void {
-    this.closedByClient = true
-    setTimeout(() => this.onclose?.(new CloseEvent('close', { code: 1005 })), 0)
-  }
-
-  sendBar(ticker: string, close: number): void {
-    const bar = {
-      type: 'bar',
-      ticker,
-      minute_utc: '2026-09-28T19:59:00Z',
-      open: close,
-      high: close,
-      low: close,
-      close,
-      volume: 100,
-    }
-    this.onmessage?.(new MessageEvent('message', { data: JSON.stringify(bar) }))
-  }
-
-  drop(code = 1006): void {
-    this.onclose?.(new CloseEvent('close', { code }))
-  }
-}
+import { recordingSockets } from '@/__tests__/fakeSocket'
+import { useLiveBar } from '../useLiveBar'
 
 /** Runs useLiveBar the way a component would, recording every socket it opens. */
 function startLiveBar(initialTicker: string) {
   const ticker = ref(initialTicker)
-  const sockets: FakeSocket[] = []
+  const { openSocket, sockets, latestSocket } = recordingSockets()
   const scope = effectScope()
-  const live = scope.run(() =>
-    useLiveBar(ticker, (url) => {
-      const socket = new FakeSocket(url)
-      sockets.push(socket)
-      return socket
-    }),
-  )!
-  const latestSocket = () => sockets[sockets.length - 1]!
+  const live = scope.run(() => useLiveBar(ticker, openSocket))!
   return { ticker, live, sockets, latestSocket, closePopup: () => scope.stop() }
 }
 

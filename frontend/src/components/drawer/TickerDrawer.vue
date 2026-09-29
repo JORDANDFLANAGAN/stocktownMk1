@@ -1,21 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, toRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { useLiveBar } from '@/composables/useLiveBar'
 import { useUniverseStore } from '@/stores/universe'
+import DrawerHeader from './DrawerHeader.vue'
 
 const props = defineProps<{ ticker: string }>()
 
 const route = useRoute()
 const router = useRouter()
 const store = useUniverseStore()
+// one connection per open drawer; the sections get the bar as a prop
+const { bar } = useLiveBar(toRef(props, 'ticker'))
 
 const position = computed(() => store.positions.find(({ ticker }) => ticker === props.ticker))
 
@@ -34,13 +32,13 @@ function close(): void {
   <!-- open for as long as the route is: closing it means leaving the route -->
   <Sheet :open="true" @update:open="close">
     <SheetContent side="right">
-      <SheetHeader>
-        <SheetTitle>{{ ticker }}</SheetTitle>
-        <SheetDescription v-if="position">
-          {{ position.name }} · {{ position.sector ?? 'Unclassified' }}
-        </SheetDescription>
-        <SheetDescription v-else>Not in {{ store.universe?.name }}.</SheetDescription>
-      </SheetHeader>
+      <DrawerHeader
+        :ticker="ticker"
+        :position="position"
+        :universe-name="store.universe?.name ?? ''"
+        :session-date="store.universe?.session_date ?? null"
+        :bar="bar"
+      />
     </SheetContent>
   </Sheet>
 </template>
