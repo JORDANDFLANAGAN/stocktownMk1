@@ -26,6 +26,11 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.13"
+      - name: Generated API types match the backend
+        run: npm run gen:api && git diff --exit-code src/api/schema.d.ts
       - name: Lint (fails if the linters would change a file)
         run: npm run lint && git diff --exit-code
       - run: npm run test

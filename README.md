@@ -82,7 +82,7 @@ Run the API server alongside it.
 | `npm run type-check` | vue-tsc |
 | `npm run lint` | Oxlint + ESLint (auto-fixes) |
 | `npm run build` | Type-check + production build into `frontend/dist/` |
-| `npm run gen:api` | Regenerate `src/api/schema.d.ts` from the running API's `/openapi.json` |
+| `npm run gen:api` | Regenerate `src/api/schema.d.ts` from the backend's schema (no server needed; uses `uv`) |
 
 Two views over one shared state, switchable without reloading data:
 

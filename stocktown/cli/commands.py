@@ -28,6 +28,7 @@ from stocktown import (
     resolve_tickers,
     stream_minute_bars,
 )
+from stocktown.main import create_app
 
 TOP_HOLDINGS_TO_PRINT = 10
 JSON_SAMPLE_SIZE = 3
@@ -107,6 +108,10 @@ def main() -> None:
         help="Only compute this metric (repeatable; default: all)",
     )
 
+    subparsers.add_parser(
+        "openapi", help="Print the API's OpenAPI schema as JSON (feeds the frontend's gen:api)"
+    )
+
     args = parser.parse_args()
 
     if args.command == "holdings":
@@ -127,6 +132,8 @@ def main() -> None:
     elif args.command == "metrics":
         tickers = load_spy_tickers() if args.spy else args.tickers
         preview_metrics(tickers, metric_keys=args.metric_keys)
+    elif args.command == "openapi":
+        preview_openapi()
 
 
 def preview_holdings(holdings: list[Holding]) -> None:
@@ -296,6 +303,10 @@ def preview_metrics(tickers: list[str], *, metric_keys: list[str] | None) -> Non
     for metric in metrics:
         missing = sum(value is None for value in values_by_metric[metric.key].values())
         print(f"  {metric.key:<18} {missing:>4}/{len(tickers)}")
+
+
+def preview_openapi() -> None:
+    print(json.dumps(create_app(warm_on_startup=False).openapi(), indent=2))
 
 
 def format_metric_value(value: float | None, *, unit: Unit, width: int) -> str:

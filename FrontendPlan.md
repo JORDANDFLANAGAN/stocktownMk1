@@ -90,12 +90,15 @@ Deliberately *not* built yet (no second universe to justify them):
 
 - **Add `signed: bool` to `Metric` class** and to `MetricInfoResponse` in
   `stocktown/api/schemas.py`. Populate per metric (`day_change`,
-  `one_year_return`, `momentum` → `True`; others → `False`). Regenerate
-  frontend types afterwards.
+  `one_year_return` → `True`; others → `False`). Regenerate frontend types
+  afterwards (`npm run gen:api`).
 - **Confirm Finnhub dividend-yield unit** (fraction vs percent) when wiring the
   popup fundamentals section. Update `src/utils/format.ts` usage accordingly.
+- **Make `unit`, `scale`, `refresh` `Literal` types** in
+  `MetricInfoResponse`, so the generated TypeScript gets `'percent' | 'ratio'`
+  instead of `string` (lets `formatByUnit` take the schema type directly).
 
-Both land as separate small commits before Phase 6.
+All land as separate small commits before Phase 6.
 
 ---
 
@@ -169,41 +172,47 @@ running both backend and frontend on every push.
 Goal: a typed HTTP client and typed WS message layer, ready to be consumed by
 stores. No UI yet.
 
-**Prerequisites:** Phase 0 complete; backend running so `/openapi.json` is
-reachable.
+**Prerequisites:** Phase 0 complete. No running backend needed.
 
 **Deliverables:**
 
-- `src/api/schema.d.ts` — generated from `/openapi.json`, committed
-- CI: schema drift check — regenerate `schema.d.ts` and `git diff --exit-code`
-  (moved from Phase 0; decide then whether CI dumps `openapi.json` from Python
-  or starts the server)
-- `src/api/client.ts` — exports a configured `openapi-fetch` client instance
-  typed against `schema.d.ts`. Base URL blank (relative paths, dev proxy handles it).
-- `src/api/live.ts` — hand-written discriminated union for WS messages:
+- `python -m stocktown openapi` — prints the schema straight from the app;
+  `npm run gen:api` pipes it into `openapi-typescript`
+- `src/api/schema.d.ts` — generated, committed, excluded from Prettier
+  (`.prettierignore`)
+- CI: schema drift check — `npm run gen:api && git diff --exit-code
+  src/api/schema.d.ts` (frontend job installs `uv` for this)
+- `src/api/client.ts` — `Api` interface (`fetchUniverse`, `fetchMetrics`,
+  `fetchInstrument`) + `createApi({ baseUrl, fetch })` built on
+  `openapi-fetch`. Stores depend on `Api`, so tests pass a plain fake.
+  Errors throw `ApiError { status, retryAfterSeconds }`. Base URL blank
+  (relative paths, dev proxy handles it).
+- `src/api/live.ts` — hand-written WS message types:
   ```ts
-  export type LiveMessage =
-    | { type: "bar"; ticker: string; t: string; o: number; h: number; l: number; c: number; v: number }
-    // future: | { type: "status"; ... }
+  export interface LiveBar {
+    type: 'bar'; ticker: string; minute_utc: string
+    open: number; high: number; low: number; close: number; volume: number
+  }
+  export type LiveMessage = LiveBar // future: | LiveStatus
   ```
-  Plus a small `parseLiveMessage(raw: string): LiveMessage` that JSON.parses and
-  narrows via the `type` discriminant, throwing on unknown types (fail loud).
-- `src/types/` — non-API domain types that don't come from the schema:
-  `SortSpec`, `FilterSpec`, `MetricSelection` (which metric drives height/colour).
-  Small and additive; every field justified by a downstream consumer.
+  Plus `parseLiveMessage(raw: string): LiveMessage` — trusts our server for
+  the fields, throws on unknown `type` (fail loud).
+- `src/__tests__/fixtures.ts` — `TEST_PORTFOLIO`, the non-SPY fixture (see
+  "Universe-agnostic by design")
+- create-vue example code removed; `App.vue` is a bare `<RouterView />`
+- `src/types/` (`SortSpec`, `FilterSpec`, `MetricSelection`) moved to Phase 3,
+  next to their first consumer
 
 **Done when:**
 
-- `client.GET("/universes/spy")` type-checks and returns a typed response in a
-  scratch test
-- `parseLiveMessage` narrows correctly (checked by a unit test)
+- `client.spec.ts` and `live.spec.ts` pass and are mutation-verified
+- `npm run gen:api` leaves `schema.d.ts` unchanged
 - No runtime code depends on `any`
 
 **Checkpoints:**
 
-1. `client.ts` and `live.ts` proposals (short, ~30 lines each)
-2. `types/` proposals
-3. One scratch test file demonstrating end-to-end type safety, then deleted
+1. `client.ts`, `live.ts`, tests and the `gen:api` pipeline — one proposal,
+   prototyped in scratch first
 
 ---
 
@@ -276,20 +285,25 @@ number formatting — but the list is still a placeholder.
 **Deliverables:**
 
 - `src/router/index.ts` — routes:
-  - `/` → redirect to `/list`
-  - `/list` (component: `ListView`)
-  - `/list/ticker/:ticker` (component: `ListView`, drawer slot receives ticker)
-  - `/city` (component: `CityView`)
-  - `/city/ticker/:ticker` (component: `CityView`, drawer slot receives ticker)
+  - `/` → redirect to `/spy/list` (`DEFAULT_UNIVERSE_ID`)
+  - `/:universeId/list` (name `list`, component: `ListView`)
+  - `/:universeId/list/ticker/:ticker` (name `list-ticker`, component:
+    `ListView`, drawer slot receives ticker)
+  - `/:universeId/city` (name `city`, component: `CityView`)
+  - `/:universeId/city/ticker/:ticker` (name `city-ticker`, component:
+    `CityView`, drawer slot receives ticker)
 - `src/App.vue` — top-level layout: header (app title, view switcher), main
   content slot (router-view), drawer slot (router-view name="drawer"). Wraps
   the main router-view in `<Suspense>` for boot fetch. Suspense fallback: a
   full-screen skeleton (shadcn Skeleton).
 - `src/composables/useBootFetch.ts` — awaited in async setup of a top-level
-  wrapper component; calls `useUniverseStore().load()`. Suspense hooks off this.
+  wrapper component; calls `useUniverseStore().load(route.params.universeId)`. Suspense hooks off this.
 - `src/composables/useQuerySort.ts`, `useQueryFilters.ts`, `useQueryMetrics.ts`
   — read/write URL query params for sort, filters, and metric picks. Return
   typed refs. Two-way sync with `useRoute`/`useRouter`.
+- `src/types/` (moved from Phase 1) — `SortSpec`, `FilterSpec`,
+  `MetricSelection` (which metric drives height/colour), written alongside
+  the composables above. Every field justified by a consumer.
 - `src/utils/format.ts` — pure functions:
   - `formatPercent(x: number, digits = 1)` → `"12.3%"`
   - `formatSignedPercent(x: number, digits = 1)` → `"+1.2%"` / `"−0.4%"`
@@ -305,7 +319,7 @@ number formatting — but the list is still a placeholder.
 **Done when:**
 
 - App boots, shows a header + placeholder list/city view + no drawer
-- Navigating to `/list/ticker/AAPL` re-enters `ListView` with drawer route
+- Navigating to `/spy/list/ticker/AAPL` re-enters `ListView` with drawer route
   populated (drawer content is still a placeholder)
 - Sort/filter/metric composables round-trip through the URL — updating a ref
   updates the URL, and pasting a URL populates the refs
@@ -339,7 +353,7 @@ row-click that opens a placeholder drawer route.
     (definitions pulled from `useUniverseStore().metricsCatalogue`)
   - Single-column sort, driven by `useQuerySort`
   - Filters applied before sort (composable — a plain function over positions)
-  - Row click → `router.push({ path: '/list/ticker/' + ticker, query: route.query })`
+  - Row click → `router.push({ name: 'list-ticker', params: { universeId, ticker }, query: route.query })`
     (query preserved so sort/filter survive drawer navigation)
   - Cells: `<MetricCell :value :unit>` — dispatches to `formatByUnit`; null
     shows `—`
@@ -356,9 +370,9 @@ row-click that opens a placeholder drawer route.
 
 **Done when:**
 
-- Browser: `/list` shows all 500 rows, sort works, filter works, row-click
-  navigates to `/list/ticker/AAPL` (drawer still placeholder)
-- Refreshing on `/list/ticker/AAPL?sort=-beta&sector=Technology` preserves
+- Browser: `/spy/list` shows all 500 rows, sort works, filter works, row-click
+  navigates to `/spy/list/ticker/AAPL` (drawer still placeholder)
+- Refreshing on `/spy/list/ticker/AAPL?sort=-beta&sector=Technology` preserves
   everything
 - Virtualised scroll stays smooth (visually verify — no jank at 500 rows)
 - All list-related tests pass
@@ -386,7 +400,7 @@ metrics, fundamentals, and OHLCV. Same drawer will serve the city view later.
 
 - `src/components/drawer/TickerDrawer.vue` — shadcn Sheet, right side. Opens
   when the current route has `:ticker`; closing pushes back to the parent
-  (`/list` or `/city`). Internal layout is a scrollable column of sections.
+  (`/:universeId/list` or `/:universeId/city`). Internal layout is a scrollable column of sections.
 - `src/components/drawer/DrawerHeader.vue` — ticker, name, sector, live price,
   day change. Live price + day change from `useLiveBar(ticker)`. Day change
   computed against the previous close from `useUniverseStore` (already in
@@ -415,12 +429,12 @@ metrics, fundamentals, and OHLCV. Same drawer will serve the city view later.
 
 **Done when:**
 
-- Clicking a row on `/list` opens the drawer with the header populated
+- Clicking a row on `/spy/list` opens the drawer with the header populated
   immediately (data already in the snapshot)
 - Fundamentals section shows skeleton, then real values within ~1s
 - Live bar section shows "connecting…" for a fraction of a second, then bars
   arrive and update
-- Closing the drawer returns to `/list` with sort/filter intact
+- Closing the drawer returns to `/spy/list` with sort/filter intact
 - All drawer tests pass; mutation-verify the reconnect UI transitions
 
 **Checkpoints:**
@@ -495,7 +509,7 @@ and `npm run gen:api` re-run. Finnhub dividend-yield unit verified.
     hovered instance gets an outline (via a second slightly-larger
     `InstancedMesh` in accent colour, only the hovered index visible) + 1.05×
     scale
-  - Click: push `/city/ticker/{ticker}` with query preserved
+  - Click: push `{ name: 'city-ticker', params: { universeId, ticker } }` with query preserved
   - Selection (route ticker exists): thicker outline in accent colour on the
     selected building
 - Tests (Vitest — no browser needed for the pure bits):
@@ -511,11 +525,11 @@ and `npm run gen:api` re-run. Finnhub dividend-yield unit verified.
 
 **Done when:**
 
-- Browser: `/city` renders the treemap-city with plasma-coloured buildings on
+- Browser: `/spy/city` renders the treemap-city with plasma-coloured buildings on
   a light ground with visible street corridors
 - Both dropdowns work; URL updates on change; refreshing preserves selections
 - Hover shows outline + tooltip; click opens the drawer at
-  `/city/ticker/AAPL`; drawer close returns to `/city` with same metric picks
+  `/spy/city/ticker/AAPL`; drawer close returns to `/spy/city` with same metric picks
 - Rotating/panning/zooming feels smooth; camera cannot clip below the ground
   plane or flip upside down
 - Legend matches the current colour metric; changes with the dropdown
