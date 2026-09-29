@@ -7,7 +7,10 @@ export type Position = components['schemas']['PositionResponse']
 export type MetricInfo = components['schemas']['MetricInfoResponse']
 export type Instrument = components['schemas']['InstrumentResponse']
 
-/** What the app needs from the backend. Stores depend on this, so tests can hand them a plain fake. */
+/**
+ * What the app needs from the backend. Stores depend on this, so tests can hand them a plain fake.
+ * A dead network rejects with the browser's `TypeError`, not `ApiError`.
+ */
 export interface Api {
   fetchUniverse(universeId: string): Promise<Universe>
   fetchMetrics(): Promise<MetricInfo[]>
@@ -37,19 +40,19 @@ export function createApi({ baseUrl = '', fetch = globalThis.fetch }: ApiOptions
 
   return {
     async fetchUniverse(universeId) {
-      const { data, response } = await client.GET('/universes/{universe_id}', {
+      const { data, response } = await client.GET('/api/universes/{universe_id}', {
         params: { path: { universe_id: universeId } },
       })
       return dataOrThrow(data, response)
     },
 
     async fetchMetrics() {
-      const { data, response } = await client.GET('/metrics')
+      const { data, response } = await client.GET('/api/metrics')
       return dataOrThrow(data, response)
     },
 
     async fetchInstrument(ticker) {
-      const { data, response } = await client.GET('/instruments/{ticker}', {
+      const { data, response } = await client.GET('/api/instruments/{ticker}', {
         params: { path: { ticker } },
       })
       return dataOrThrow(data, response)

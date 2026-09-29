@@ -47,7 +47,7 @@ def client_for(
 def test_the_popup_gets_the_latest_price_immediately_then_live_bars():
     alpaca = FakeAlpaca(scripted_bars=[MONDAYS_FIRST_MINUTE])
 
-    with client_for(alpaca).websocket_connect("/live?ticker=aapl") as popup:
+    with client_for(alpaca).websocket_connect("/api/live?ticker=aapl") as popup:
         first, second = popup.receive_json(), popup.receive_json()
 
     assert (first["type"], first["close"]) == ("bar", 340.0)
@@ -58,7 +58,7 @@ def test_live_bars_still_arrive_when_the_latest_price_cannot_be_loaded():
     alpaca = FakeAlpaca(scripted_bars=[MONDAYS_FIRST_MINUTE])
 
     with client_for(alpaca, latest_bar_loader=latest_bar_unavailable).websocket_connect(
-        "/live?ticker=AAPL"
+        "/api/live?ticker=AAPL"
     ) as popup:
         assert popup.receive_json()["close"] == 341.0
 
@@ -82,7 +82,7 @@ async def test_forwarding_stops_when_the_popup_closes_even_while_no_bars_are_flo
 
 def test_an_unknown_ticker_is_refused_with_a_not_found_close_code():
     with pytest.raises(WebSocketDisconnect) as refused:
-        with client_for(FakeAlpaca()).websocket_connect("/live?ticker=NOTATICKER") as popup:
+        with client_for(FakeAlpaca()).websocket_connect("/api/live?ticker=NOTATICKER") as popup:
             popup.receive_json()
 
     assert refused.value.code == 4404
@@ -91,7 +91,7 @@ def test_an_unknown_ticker_is_refused_with_a_not_found_close_code():
 def test_an_unreachable_asset_catalogue_closes_the_popup_with_an_upstream_unavailable_code():
     with pytest.raises(WebSocketDisconnect) as refused:
         with client_for(FakeAlpaca(), assets_loader=alpaca_unreachable).websocket_connect(
-            "/live?ticker=AAPL"
+            "/api/live?ticker=AAPL"
         ) as popup:
             popup.receive_json()
 

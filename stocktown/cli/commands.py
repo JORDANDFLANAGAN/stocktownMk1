@@ -28,7 +28,6 @@ from stocktown import (
     resolve_tickers,
     stream_minute_bars,
 )
-from stocktown.main import create_app
 
 TOP_HOLDINGS_TO_PRINT = 10
 JSON_SAMPLE_SIZE = 3
@@ -306,6 +305,9 @@ def preview_metrics(tickers: list[str], *, metric_keys: list[str] | None) -> Non
 
 
 def preview_openapi() -> None:
+    # Imported here so the other commands don't build the web app they never use.
+    from stocktown.main import create_app
+
     print(json.dumps(create_app(warm_on_startup=False).openapi(), indent=2))
 
 

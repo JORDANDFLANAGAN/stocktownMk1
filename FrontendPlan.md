@@ -29,7 +29,7 @@ Full reasoning lives in the grill transcript; this is a reference card.
 | Package manager | npm |
 | TypeScript | `strict: true` + `noUncheckedIndexedAccess: true` |
 | Linter/formatter | ESLint + Prettier (create-vue defaults) |
-| Folder shape | Type-based: `api/`, `components/`, `composables/`, `stores/`, `types/`, `views/`, `router/` |
+| Folder shape | Type-based: `api/`, `components/`, `composables/`, `lib/` (helpers: shadcn `cn`, formatters), `stores/`, `types/`, `views/`, `router/` |
 | HTTP client | `openapi-fetch` |
 | Types (HTTP) | Generated from `/openapi.json` via `openapi-typescript` → `src/api/schema.d.ts` |
 | Types (WS) | Hand-written discriminated union in `src/api/live.ts` (OpenAPI doesn't cover WS) |
@@ -38,6 +38,7 @@ Full reasoning lives in the grill transcript; this is a reference card.
 | Styling | Tailwind CSS + shadcn-vue |
 | Theme | Zinc neutral + teal primary (avoids RdBu and plasma's purple end); Inter self-hosted via `@fontsource-variable/inter` |
 | Dev integration | Vite proxy to FastAPI |
+| API paths | Everything under `/api` (REST + `WS /api/live`); page routes own the rest; plan text omits the prefix |
 | Pinia | Three Setup Stores: `useUniverseStore`, `useFundamentalsStore`, `useLiveBarStore` |
 | WS consumption | `useLiveBar(ticker)` composable + 3-try exponential-backoff reconnect |
 | Testing | Vitest + `@testing-library/vue`; behavioural names; inject fakes; mutation-verify |
@@ -45,10 +46,10 @@ Full reasoning lives in the grill transcript; this is a reference card.
 | Prod serving | Deferred until deployment. Likely FastAPI serving `frontend/dist` (same-origin), with a fallback to `index.html` for deep links |
 | List | All columns visible + TanStack Table + TanStack Virtual + single-column sort |
 | List filters | Sector multi-select chips + ticker/name substring; no metric range filters |
-| URL params | `?sort=-beta&sector=Technology,Financials&q=aapl&height=one_year_return&color=day_change` |
+| URL params | `?sort=-beta_1y&sector=Technology,Financials&q=aapl&height=one_year_return&color=day_change` |
 | Popup layout | Right-side drawer, stacked sections (header / metrics / fundamentals / live) |
 | Loading UX | `<Suspense>` for boot; manual `{loading, error, data}` refs per store thereafter |
-| Formatting | `src/utils/format.ts`, `Intl.NumberFormat('en-US', …)`, driven by `metric.unit` |
+| Formatting | `src/lib/format.ts`, `Intl.NumberFormat('en-US', …)`, driven by `metric.unit` |
 | City layout | Meta-treemap of treemaps (sector districts → holdings) with padding for streets |
 | City rendering | Single `InstancedMesh` of `BoxGeometry(1,1,1)`, per-instance matrix + colour |
 | City camera | `MapControls`, perspective @ ~45°, polar clamp `[15°, 75°]` |
@@ -93,10 +94,13 @@ Deliberately *not* built yet (no second universe to justify them):
   `one_year_return` → `True`; others → `False`). Regenerate frontend types
   afterwards (`npm run gen:api`).
 - **Confirm Finnhub dividend-yield unit** (fraction vs percent) when wiring the
-  popup fundamentals section. Update `src/utils/format.ts` usage accordingly.
+  popup fundamentals section. Update `src/lib/format.ts` usage accordingly.
 - **Make `unit`, `scale`, `refresh` `Literal` types** in
   `MetricInfoResponse`, so the generated TypeScript gets `'percent' | 'ratio'`
   instead of `string` (lets `formatByUnit` take the schema type directly).
+- **Add `last_close` to `PositionResponse`** — the drawer's live day change
+  needs the previous close, and the payload currently carries no price.
+  Lands in the same `gen:api` regeneration as `signed`.
 
 All land as separate small commits before Phase 6.
 
@@ -114,8 +118,8 @@ running both backend and frontend on every push.
 - `frontend/` directory with `create-vue` output (TypeScript, Router, Pinia,
   Vitest, ESLint, Prettier; no JSX, no E2E)
 - `frontend/tsconfig.json` sets `strict: true` and `noUncheckedIndexedAccess: true`
-- `frontend/vite.config.ts` proxies `/universes`, `/instruments`, `/metrics`,
-  `/live` to `http://localhost:8000`
+- `frontend/vite.config.ts` proxies `/api` (HTTP + WebSocket) to
+  `http://localhost:8000`
 - Tailwind CSS v4 installed (`tailwindcss`, `@tailwindcss/vite`) as a Vite
   plugin — no `postcss`/`autoprefixer`/`tailwind.config.js`; the theme
   (`zinc` neutral + teal primary) lives in `src/assets/main.css`
@@ -128,14 +132,14 @@ running both backend and frontend on every push.
   - `openapi-fetch`, `openapi-typescript` (dev). `openapi-typescript` 7.13
     declares `typescript@^5` as a peer; `package.json` `overrides` points it
     at the project's TypeScript 6 (verified: generated schema passes
-    `tsc --strict`). Remove the override once upstream supports TS 6.
+    `tsc --strict`). Remove the override once upstream supports TS 6. (`skipLibCheck` is on, so the schema file itself is only checked through `client.ts` using its types.)
   - `@tanstack/vue-table`, `@tanstack/vue-virtual`
   - `d3-hierarchy`, `d3-scale`, `d3-scale-chromatic` (+ their `@types/*`)
   - `three`, `@types/three`
   - `@testing-library/vue` (dev)
 - `frontend/package.json` scripts: `dev`, `build`, `preview`, `type-check`,
-  `lint`, `test`, `gen:api` (regenerates `src/api/schema.d.ts` from
-  `http://localhost:8000/openapi.json`)
+  `lint`, `test`, `gen:api` (regenerates `src/api/schema.d.ts` from the
+  backend schema via `python -m stocktown openapi`; no server needed)
 - `.github/workflows/ci.yml` with two jobs:
   - **backend**: `uv sync`, `uv run pytest`
   - **frontend**: `npm ci`, `npm run lint && git diff --exit-code` (lint
@@ -155,7 +159,7 @@ running both backend and frontend on every push.
   `http://localhost:5173`
 - `npm run type-check`, `npm run lint`, `npm run test` all pass on the empty
   project
-- `npm run gen:api` (with the backend running) writes `src/api/schema.d.ts`
+- `npm run gen:api` writes `src/api/schema.d.ts`
 - A push triggers CI; both jobs go green
 
 **Checkpoints (review pauses):**
@@ -253,7 +257,7 @@ Goal: all data-fetching primitives in place, unit-tested, no UI consumers yet.
   updates store; assert reconnect fires 3× on unexpected close, then gives up;
   assert unmount closes cleanly.
 
-Behavioural test names. Hand-built payloads via `tests/factories.ts` (mirror
+Behavioural test names. Hand-built payloads via `src/__tests__/fixtures.ts` (mirror
 backend's `tests/factories.py`). No `vi.mock`; inject fakes as constructor
 args.
 
@@ -304,7 +308,7 @@ number formatting — but the list is still a placeholder.
 - `src/types/` (moved from Phase 1) — `SortSpec`, `FilterSpec`,
   `MetricSelection` (which metric drives height/colour), written alongside
   the composables above. Every field justified by a consumer.
-- `src/utils/format.ts` — pure functions:
+- `src/lib/format.ts` — pure functions:
   - `formatPercent(x: number, digits = 1)` → `"12.3%"`
   - `formatSignedPercent(x: number, digits = 1)` → `"+1.2%"` / `"−0.4%"`
     (uses U+2212 minus, not hyphen, for typographic correctness)
@@ -313,7 +317,7 @@ number formatting — but the list is still a placeholder.
     with `notation: "compact"`)
   - `formatByUnit(unit: "percent" | "ratio", value: number | null, opts?)` —
     dispatch by metric unit, returns `"—"` for `null`
-- `src/utils/format.spec.ts` — behavioural tests for each formatter, edge cases
+- `src/lib/__tests__/format.spec.ts` — behavioural tests for each formatter, edge cases
   (0, negative, null, very large, very small).
 
 **Done when:**
@@ -363,16 +367,16 @@ row-click that opens a placeholder drawer route.
 - Tests:
   - `PositionsTable.spec.ts` — behavioural: sorting by beta desc puts highest
     beta first; searching "AAP" narrows to matching tickers; clicking a row
-    pushes the expected route (mock router).
+    pushes the expected route (real router with memory history).
   - `FilterBar.spec.ts` — sector chip toggles URL param; search input debounces.
-  - Fixtures live in `tests/factories.ts` — hand-built `Position` records with
+  - Fixtures live in `src/__tests__/fixtures.ts` — hand-built `Position` records with
     known metric values.
 
 **Done when:**
 
 - Browser: `/spy/list` shows all 500 rows, sort works, filter works, row-click
   navigates to `/spy/list/ticker/AAPL` (drawer still placeholder)
-- Refreshing on `/spy/list/ticker/AAPL?sort=-beta&sector=Technology` preserves
+- Refreshing on `/spy/list/ticker/AAPL?sort=-beta_1y&sector=Technology` preserves
   everything
 - Virtualised scroll stays smooth (visually verify — no jank at 500 rows)
 - All list-related tests pass
@@ -403,8 +407,8 @@ metrics, fundamentals, and OHLCV. Same drawer will serve the city view later.
   (`/:universeId/list` or `/:universeId/city`). Internal layout is a scrollable column of sections.
 - `src/components/drawer/DrawerHeader.vue` — ticker, name, sector, live price,
   day change. Live price + day change from `useLiveBar(ticker)`. Day change
-  computed against the previous close from `useUniverseStore` (already in
-  memory).
+  computed against the position's `last_close` from `useUniverseStore`
+  (already in memory once the `last_close` backend follow-up lands).
 - `src/components/drawer/CityMetricsSection.vue` — compact 2-column list of
   every metric with its formatted value. Read from `useUniverseStore`.
 - `src/components/drawer/FundamentalsSection.vue` — P/E, market cap, dividend
@@ -594,7 +598,7 @@ Goal: things a real user would notice, but that don't gate the earlier phases.
 Called out so future-me doesn't wonder whether they were forgotten:
 
 - **E2E tests (Playwright).** Deferred until the list view is stable and worth
-  driving end-to-end. Adding it later is `pnpm create playwright` + one
+  driving end-to-end. Adding it later is `npm init playwright` + one
   workflow job.
 - **Column picker on the list.** All columns visible for MVP.
 - **CSV export from the list.** Roadmap item.

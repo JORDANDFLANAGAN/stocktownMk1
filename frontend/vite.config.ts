@@ -19,10 +19,7 @@ export default defineConfig({
     // Dev only: forward API calls to FastAPI so the browser sees one origin,
     // matching production where FastAPI serves the built files.
     proxy: {
-      '/universes': BACKEND_URL,
-      '/metrics': BACKEND_URL,
-      '/instruments': BACKEND_URL,
-      '/live': { target: BACKEND_URL, ws: true },
+      '/api': { target: BACKEND_URL, ws: true },
     },
   },
 })

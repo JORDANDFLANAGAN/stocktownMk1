@@ -16,6 +16,7 @@ from stocktown.api.routes import instruments, live, metrics, universes
 from stocktown.config import get_cors_allowed_origins
 
 DEFAULT_UNIVERSE_ID: Final[str] = "spy"
+API_PREFIX: Final[str] = "/api"
 GZIP_MINIMUM_BYTES: Final[int] = 1_000
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ def create_app(*, warm_on_startup: bool = True) -> FastAPI:
     )
     register_error_handlers(app)
     for route_module in (universes, metrics, instruments, live):
-        app.include_router(route_module.router)
+        app.include_router(route_module.router, prefix=API_PREFIX)
     return app
 
 

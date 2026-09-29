@@ -36,8 +36,10 @@ Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/) (`brew install uv`).
 ```bash
 uv sync            # creates .venv, installs runtime + dev dependencies pinned by uv.lock
 
-cp .env.example .env
-# then edit .env to add your Alpaca and Finnhub keys
+# create .env (gitignored) with your keys:
+#   ALPACA_API_KEY=...
+#   ALPACA_API_SECRET=...
+#   FINNHUB_API_KEY=...
 ```
 
 Add a dependency with `uv add <package>` (or `uv add --dev <package>` for test/dev tools); this updates both `pyproject.toml` and `uv.lock`. Commit `uv.lock`.
@@ -53,12 +55,14 @@ uv run uvicorn stocktown.main:app --reload
 
 Interactive docs at <http://localhost:8000/docs>. On startup the S&P 500 snapshot builds in the background (~11s); after that responses come from memory, and the snapshot rebuilds once per day.
 
+Every endpoint lives under `/api`; the design notes below omit the prefix.
+
 | Endpoint | Returns |
 |---|---|
-| `GET /universes/spy` | Every position: ticker, name, sector, `asset_class`, weight (fraction, sums to 1.0), and all metric values (`null` = no data). ~53 KB gzipped |
-| `GET /metrics` | Metric catalogue for the dropdowns: key, label, unit, scale, refresh — in display order |
-| `GET /instruments/{ticker}` | Popup detail: P/E, market cap (USD), dividend yield and earnings yield (fractions). Finnhub, cached per ticker per day |
-| `WS /live?ticker={ticker}` | Popup price feed: the latest bar immediately (last close when the market is shut), then each new minute bar as JSON `{"type": "bar", "ticker", "minute_utc", "open", "high", "low", "close", "volume"}`. Unknown ticker → closed with code `4404` |
+| `GET /api/universes/spy` | Every position: ticker, name, sector, `asset_class`, weight (fraction, sums to 1.0), and all metric values (`null` = no data). ~53 KB gzipped |
+| `GET /api/metrics` | Metric catalogue for the dropdowns: key, label, unit, scale, refresh — in display order |
+| `GET /api/instruments/{ticker}` | Popup detail: P/E, market cap (USD), dividend yield and earnings yield (fractions). Finnhub, cached per ticker per day |
+| `WS /api/live?ticker={ticker}` | Popup price feed: the latest bar immediately (last close when the market is shut), then each new minute bar as JSON `{"type": "bar", "ticker", "minute_utc", "open", "high", "low", "close", "volume"}`. Unknown ticker → closed with code `4404` |
 
 Any ticker spelling works (`BRK.B`, `brk-b`, `BRK/B`). Alpaca's free tier allows one WebSocket connection, so every popup shares it through `LiveBarHub`: a ticker is subscribed upstream when its first popup opens and unsubscribed when the last one closes; the connection opens on demand, closes after 60s with no viewers, and reconnects (re-subscribing) if it drops.
 
@@ -66,7 +70,7 @@ Errors: `404` unknown universe/ticker; `503` provider down or rate-limited (with
 
 ## Frontend
 
-Vue 3 + TypeScript + Vite in `frontend/`. Needs Node 22.18+ (developed on 26); npm comes with it.
+Vue 3 + TypeScript + Vite in `frontend/`. Needs Node 22.22+, 24.15+ or 26+ (developed on 26); npm comes with it.
 
 ```bash
 cd frontend
@@ -88,7 +92,7 @@ Two views over one shared state, switchable without reloading data:
 
 | View | What it shows | Interactions |
 |---|---|---|
-| **List** (built first) | One row per position: ticker, name, sector, weight, and a column per metric from `GET /metrics` | Sort by any column, filter (sector, text search, metric ranges), click a row → detail popup |
+| **List** (built first) | One row per position: ticker, name, sector, weight, and a column per metric from `GET /metrics` | Sort by any column, filter (sector, text search), click a row → detail popup |
 | **City** | Three.js treemap: sector districts, footprint = weight, height and colour = chosen metrics | Orbit, hover, click a building → detail popup |
 
 - **One payload, two renderings.** Both views read the same `GET /universes/spy` response, and sorting and filtering happen in the browser (500 rows is trivial). No extra endpoints.
@@ -99,7 +103,7 @@ Two views over one shared state, switchable without reloading data:
 | Concern | Choice | Why |
 |---|---|---|
 | Framework | Vue 3 (Composition API) | Two views sharing state plus a table and a popup justify a framework. Vue's templates and `ref`/`computed` reactivity are close to Angular, and `watch()` suits updating an imperative Three.js scene |
-| State | Pinia | One store: universe, chosen metrics, filters, selected ticker |
+| State | Pinia + URL | Three stores (universe, fundamentals, live bars); sort, filters, metric picks and the selected ticker live in the URL |
 | Build | Vite + TypeScript | Fast dev server, typed API payloads |
 | Table | TanStack Table (Vue adapter) | Headless sorting/filtering, our own markup |
 | 3D | Three.js (`InstancedMesh`, `OrbitControls`) mounted in one Vue component | 500 buildings in one draw call |
@@ -119,6 +123,7 @@ Built out from the list view later: column picker, CSV export, portfolio columns
 | `stream [TICKERS...]` | Live minute bars via Alpaca WebSocket (market hours only). Uses Alpaca's single connection, so it fails with "connection limit exceeded" while the API server has a popup open |
 | `verify` | Reconcile all SPY tickers against Alpaca's catalogue, check sector coverage, end-to-end sanity check |
 | `metrics [TICKERS... \| --spy] [--metric KEY ...]` | Compute city metrics; `--spy` runs the full S&P 500 (~5s) |
+| `openapi` | Print the API's OpenAPI schema as JSON (feeds the frontend's `npm run gen:api`) |
 
 Defaults to `AAPL MSFT NVDA` when no tickers are given.
 

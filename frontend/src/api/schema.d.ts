@@ -4,7 +4,7 @@
  */
 
 export interface paths {
-    "/universes/{universe_id}": {
+    "/api/universes/{universe_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -12,7 +12,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Universe */
-        get: operations["get_universe_universes__universe_id__get"];
+        get: operations["get_universe_api_universes__universe_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -21,7 +21,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/metrics": {
+    "/api/metrics": {
         parameters: {
             query?: never;
             header?: never;
@@ -32,7 +32,7 @@ export interface paths {
          * List Metrics
          * @description The dropdown catalogue, in display order.
          */
-        get: operations["list_metrics_metrics_get"];
+        get: operations["list_metrics_api_metrics_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -41,7 +41,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/instruments/{ticker}": {
+    "/api/instruments/{ticker}": {
         parameters: {
             query?: never;
             header?: never;
@@ -49,7 +49,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Instrument */
-        get: operations["get_instrument_instruments__ticker__get"];
+        get: operations["get_instrument_api_instruments__ticker__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -145,7 +145,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    get_universe_universes__universe_id__get: {
+    get_universe_api_universes__universe_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -176,7 +176,7 @@ export interface operations {
             };
         };
     };
-    list_metrics_metrics_get: {
+    list_metrics_api_metrics_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -196,7 +196,7 @@ export interface operations {
             };
         };
     };
-    get_instrument_instruments__ticker__get: {
+    get_instrument_api_instruments__ticker__get: {
         parameters: {
             query?: never;
             header?: never;

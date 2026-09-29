@@ -21,7 +21,7 @@ describe('Api', () => {
 
     const universe = await api.fetchUniverse('test-portfolio')
 
-    expect(requestedUrls).toEqual([`${BACKEND}/universes/test-portfolio`])
+    expect(requestedUrls).toEqual([`${BACKEND}/api/universes/test-portfolio`])
     expect(universe).toEqual(TEST_PORTFOLIO)
   })
 

@@ -4,7 +4,7 @@ from stocktown.main import create_app
 
 
 def test_the_metric_catalogue_lists_metrics_in_display_order_with_their_units():
-    catalogue = TestClient(create_app(warm_on_startup=False)).get("/metrics").json()
+    catalogue = TestClient(create_app(warm_on_startup=False)).get("/api/metrics").json()
 
     assert len(catalogue) == 7
     assert catalogue[0] == {

@@ -39,7 +39,7 @@ def client_with_finnhub(fundamentals_fetcher, *, assets_loader=lambda: [APPLE]) 
 
 
 def test_the_popup_receives_apples_fundamentals_by_ticker():
-    response = client_with_finnhub(fetch_apple).get("/instruments/AAPL")
+    response = client_with_finnhub(fetch_apple).get("/api/instruments/AAPL")
 
     assert response.status_code == 200
     assert response.json()["name"] == "Apple Inc."
@@ -47,13 +47,13 @@ def test_the_popup_receives_apples_fundamentals_by_ticker():
 
 
 def test_an_unknown_ticker_returns_404():
-    response = client_with_finnhub(fetch_apple).get("/instruments/NOTATICKER")
+    response = client_with_finnhub(fetch_apple).get("/api/instruments/NOTATICKER")
 
     assert response.status_code == 404
 
 
 def test_a_rate_limited_popup_returns_503_with_retry_after():
-    response = client_with_finnhub(fetch_rate_limited).get("/instruments/AAPL")
+    response = client_with_finnhub(fetch_rate_limited).get("/api/instruments/AAPL")
 
     assert response.status_code == 503
     assert response.headers["retry-after"] == "30"
@@ -61,7 +61,7 @@ def test_a_rate_limited_popup_returns_503_with_retry_after():
 
 def test_an_unreachable_asset_catalogue_returns_503_not_404():
     response = client_with_finnhub(fetch_apple, assets_loader=alpaca_unreachable).get(
-        "/instruments/AAPL"
+        "/api/instruments/AAPL"
     )
 
     assert response.status_code == 503

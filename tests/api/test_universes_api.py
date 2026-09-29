@@ -39,7 +39,7 @@ def client_for(holdings: list[Holding]) -> TestClient:
 
 def test_the_universe_lists_every_position_with_every_metric_key_including_nulls():
     newly_listed = Holding(ticker="NEWCO", name="NEWLY LISTED", weight=0.0)
-    response = client_for(HOLDINGS + [newly_listed]).get("/universes/spy")
+    response = client_for(HOLDINGS + [newly_listed]).get("/api/universes/spy")
 
     positions = {position["ticker"]: position for position in response.json()["positions"]}
     metric_keys = {metric.key for metric in ALL_METRICS}
@@ -52,20 +52,20 @@ def test_the_universe_lists_every_position_with_every_metric_key_including_nulls
 
 
 def test_position_weights_are_fractions_that_sum_to_one():
-    positions = client_for(HOLDINGS).get("/universes/spy").json()["positions"]
+    positions = client_for(HOLDINGS).get("/api/universes/spy").json()["positions"]
 
     assert [position["weight"] for position in positions] == pytest.approx([0.6, 0.4])
 
 
 def test_an_unknown_universe_returns_404():
-    response = client_for(HOLDINGS).get("/universes/ftse100")
+    response = client_for(HOLDINGS).get("/api/universes/ftse100")
 
     assert response.status_code == 404
 
 
 def test_large_responses_are_gzipped():
     response = client_for(TWENTY_HOLDINGS).get(
-        "/universes/spy", headers={"Accept-Encoding": "gzip"}
+        "/api/universes/spy", headers={"Accept-Encoding": "gzip"}
     )
 
     assert response.headers["content-encoding"] == "gzip"

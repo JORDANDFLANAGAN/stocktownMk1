@@ -22,7 +22,9 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Live popup stream (Phase B): complete.** `WS /live?ticker=` sends the latest bar immediately, then minute bars. `LiveBarHub` (`services/live.py`) shares Alpaca's ONE allowed WebSocket connection across all popups: ref-counted per-ticker subscriptions, lazy connect, idle disconnect after 60s, reconnect + resubscribe with backoff, bounded per-viewer queues (drop oldest). `AssetCatalogue` (`services/assets.py`) resolves any ticker spelling for both popup endpoints. Verified live against Alpaca and a real uvicorn server. 74 tests.
 
-**Not yet built:** frontend (next — Vue 3 + TypeScript + Vite; list view first, then the Three.js city), DB persistence (deliberately after the frontend).
+**Frontend: in progress** — Vue 3 + TypeScript + Vite in `frontend/`, following `FrontendPlan.md` (phased plan + global decisions; read it before frontend work). Phase 0 (scaffold, Tailwind, shadcn-vue, CI) and Phase 1 (typed API client, live message parser) done.
+
+**Not yet built:** DB persistence (deliberately after the frontend).
 
 **To re-check during US market hours:** whether Alpaca's free-tier latest-bar endpoint is real-time on IEX or 15-min delayed (pre-market it correctly returns the previous close). If delayed, label the popup's first price.
 
@@ -46,10 +48,10 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 - **Split-adjusted historical prices, not dividend-adjusted.** Matches Yahoo Finance / TradingView expectations (price return, not total return).
 - **Popup-only realtime.** The city itself is a static per-session snapshot; the WebSocket is subscribed to only when the user clicks into a single stock's detail view. This dodges the "unlimited free-tier subscription" unknown entirely. If revisiting: user briefly wanted a live city, then explicitly reverted.
 - **Ticker normalisation via strip-and-uppercase.** Works because SPY and Alpaca share-class punctuation is the only variation. Currently 100% resolution on the S&P 500. Alpaca `/v2/assets` is the source of truth for canonical symbols.
-- **Credentials are masked in `__repr__`.** `AlpacaCredentials`/`FinnhubCredentials` override `__repr__` to print `***`. Prevents accidental leaks via `print()`, logging, or debuggers. `.env` is gitignored; `.env.example` is committed as a template.
+- **Credentials are masked in `__repr__`.** `AlpacaCredentials`/`FinnhubCredentials` override `__repr__` to print `***`. Prevents accidental leaks via `print()`, logging, or debuggers. `.env` is gitignored.
 - **No premature abstractions.** No `PriceProvider`/`ReferenceProvider` `Protocol` interfaces yet — we have exactly one implementation of each. Added when a second implementation arrives (Phase 3, European provider). Same reasoning for custom exceptions and the DB layer.
 - **Finnhub rate-limited via `time.sleep(1.1)` between calls.** Naïve but sufficient now that Finnhub is only called per clicked stock. Not extracted to a shared rate-limiter until a second rate-limited API needs one.
-- **Two frontend views, one state.** A Three.js city and a sortable/filterable list, both rendering one Pinia store (universe, chosen metrics, filters, selected ticker). Filters are shared (list filter dims/hides buildings); sort is list-only. Both open the same popup. Rows never stream — realtime stays popup-only. List is built first: quicker, and it verifies the data path and the numbers the city renders.
+- **Two frontend views, one state.** A Three.js city and a sortable/filterable list, both rendering the same state: Pinia stores (universe, fundamentals, live bars) plus the URL (sort, filters, metric picks, selected ticker). Filters are shared (list filter dims/hides buildings); sort is list-only. Both open the same popup. Rows never stream — realtime stays popup-only. List is built first: quicker, and it verifies the data path and the numbers the city renders.
 - **Vue 3, not React or Angular.** User knows Angular and doesn't want it; Vue's templates and `ref`/`computed` map closely to Angular, and `watch()` fits imperative Three.js updates better than React's re-render model. Three.js is plain imperative code in one component (no TresJS/R3F-style wrapper). Table: TanStack Table (Vue adapter).
 - **CLI structure**: `python -m stocktown <command>` with argparse subcommands (`holdings`, `bars`, `fundamentals`, `stream`, `verify`, `metrics`, `openapi`). Each subcommand has a matching `preview_*` function in `cli/commands.py`. Keep new commands consistent with this shape. Business logic the API will also need (e.g. `load_spy_tickers`) lives in `services/`, not the CLI.
 
@@ -79,7 +81,7 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 
 ## Working preferences (learned from prior sessions — follow these)
 
-- **User comes from a Java/Spring Boot background** and is (self-described) rusty on Python. When explaining Python concepts, use Spring/Java analogies. Example: `with` = try-with-resources, `@dataclass` = record, `lru_cache` = @Configuration singleton, module = .java file, package = folder with `__init__.py`.
+- **User comes from a Java/Spring Boot background** and is (self-described) rusty on Python. When explaining Python concepts, use Spring/Java analogies. Example: `with` = try-with-resources, `@dataclass` = record, `lru_cache` = @Configuration singleton, module = .java file, package = folder (`__init__.py` only when it re-exports something).
 - **User reviews all code before it is written.** Present proposed code as text in the chat and wait for an explicit "approve" or equivalent before using `Write`/`Edit`. Restructures, refactors, and multi-file changes especially.
 - **Be concise.** No preamble, no closing summaries, no filler. Direct answers, short tables, minimal prose. Bullet points where they help.
 - **Readability > cleverness.** User values "clear, readable, industry-ready code." Small named functions over dense one-liners, descriptive variable names, constants at top of module, keyword-only args for clarity. Same standard as the existing code.
@@ -101,7 +103,7 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 2. **Persistence** (`persistence/`): SQLite for MVP. Replaces the in-memory snapshot; daily bars for lookback; historical minute bars (REST, after the close) for replay; metric values cached **per ticker**.
 3. **Provider parser tests** (optional, small): `extract_pe_ratio`, SPY workbook parsing, `normalise_ticker`.
 
-API decisions to respect: one payload per city (no `/metrics/{key}` endpoint); items are `positions` with `asset_class`; all units are fractions (weights sum to 1.0); unknown → 404, provider down → 503 + `Retry-After`; tests use `create_app(warm_on_startup=False)` + `dependency_overrides`. WebSocket: unknown ticker → accept then close `4404`; provider down → `4503`; messages carry a `type` field (`"bar"` now, room for `"status"`).
+API decisions to respect: all endpoints under `/api` (page routes own the rest of the URL space); one payload per city (no `/metrics/{key}` endpoint); items are `positions` with `asset_class`; all units are fractions (weights sum to 1.0); unknown → 404, provider down → 503 + `Retry-After`; tests use `create_app(warm_on_startup=False)` + `dependency_overrides`. WebSocket: unknown ticker → accept then close `4404`; provider down → `4503`; messages carry a `type` field (`"bar"` now, room for `"status"`).
 
 Known deprecation: FastAPI's `TestClient` warns that `httpx` is deprecated for it in favour of `httpx2` — unverified; check on the next dependency update.
 
