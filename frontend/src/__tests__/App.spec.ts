@@ -96,6 +96,17 @@ describe('App', () => {
     expect(router.currentRoute.value.fullPath).toBe('/test-portfolio/list/ticker/BBB?sort=-weight')
   })
 
+  it('shows that the snapshot is being built while the data loads', async () => {
+    const api = fakeApi({
+      fetchUniverse: () => new Promise(() => {}), // still building
+      fetchMetrics: async () => [],
+    })
+
+    await renderAppAt('/test-portfolio/list', api)
+
+    expect(await screen.findByText(/Building today's snapshot/)).toBeTruthy()
+  })
+
   it('says so when the universe does not exist', async () => {
     const api = fakeApi({
       fetchUniverse: async () => {

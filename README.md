@@ -17,7 +17,7 @@ Backend MVP complete: data layer, metric layer, REST API and the live popup stre
 | Tradable-symbol catalogue + ticker reconciliation | Alpaca Trading API | `providers.alpaca.assets` |
 | Fundamentals (P/E, market cap, dividend yield) — stock-detail popup only | Finnhub REST | `providers.finnhub` |
 
-City metrics (all computed from one Alpaca daily-bars fetch; full S&P 500 in ~5s):
+City metrics (all computed from one Alpaca daily-bars fetch; full S&P 500 in ~5s — bar batches are fetched 4 at a time):
 
 | Metric key | Meaning |
 |---|---|
@@ -53,7 +53,7 @@ Add a dependency with `uv add <package>` (or `uv add --dev <package>` for test/d
 uv run uvicorn stocktown.main:app --reload
 ```
 
-Interactive docs at <http://localhost:8000/docs>. On startup the S&P 500 snapshot builds in the background (~11s); after that responses come from memory, and the snapshot rebuilds once per day.
+Interactive docs at <http://localhost:8000/docs>. On startup the S&P 500 snapshot builds in the background (~8s); after that responses come from memory, and the snapshot rebuilds once per day. Bar batches and the 11 sector workbooks are fetched 4 at a time: same request count, well inside the free tiers.
 
 Every endpoint lives under `/api`; the design notes below omit the prefix.
 

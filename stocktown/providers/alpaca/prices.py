@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from typing import Any, Final, Iterator
 
@@ -18,6 +19,10 @@ DAILY_TIMEFRAME: Final[str] = "1Day"
 
 MAX_SYMBOLS_PER_REQUEST: Final[int] = 100
 MAX_BARS_PER_PAGE: Final[int] = 10_000
+# Batches are fetched side by side: one after another, a full S&P 500 build is ~15 requests of
+# ~1.5s each. The request count is unchanged (far below the free tier's 200/minute); 4 in flight
+# keeps bursts gentle.
+MAX_CONCURRENT_BATCHES: Final[int] = 4
 
 
 def load_daily_bars(
@@ -25,13 +30,19 @@ def load_daily_bars(
 ) -> dict[str, list[DailyBar]]:
     """Fetch split-adjusted daily bars for each ticker between start and end (inclusive)."""
 
+    batches = list(chunk_symbols(tickers, MAX_SYMBOLS_PER_REQUEST))
     bars_by_ticker: dict[str, list[DailyBar]] = {}
 
-    with build_client(ALPACA_DATA_BASE_URL) as client:
-        for symbol_batch in chunk_symbols(tickers, MAX_SYMBOLS_PER_REQUEST):
-            batch_result = fetch_bars_for_batch(
-                client, symbols=symbol_batch, start=start, end=end
-            )
+    # httpx.Client is safe to share across threads (one connection pool).
+    with (
+        build_client(ALPACA_DATA_BASE_URL) as client,
+        ThreadPoolExecutor(max_workers=MAX_CONCURRENT_BATCHES) as pool,
+    ):
+        batch_results = pool.map(
+            lambda batch: fetch_bars_for_batch(client, symbols=batch, start=start, end=end),
+            batches,
+        )
+        for batch_result in batch_results:
             for ticker, bars in batch_result.items():
                 bars_by_ticker.setdefault(ticker, []).extend(bars)
 

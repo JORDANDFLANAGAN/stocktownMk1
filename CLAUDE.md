@@ -10,13 +10,13 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Data layer: complete.** Every external data source needed for the MVP is implemented, verified end-to-end (`python -m stocktown verify` currently resolves 500/500 SPY tickers against Alpaca), and organised in a layered Spring-Boot-style structure.
 
-**Metric layer: complete.** 7 price-based metrics in `services/metrics/`, computed from a single Alpaca fetch. Full S&P 500 × 7 metrics ≈ 5s. Preview with `uv run python -m stocktown metrics [TICKERS... | --spy]`. Verified: beta of VOO/IVV vs SPY ≈ 1.00.
+**Metric layer: complete.** 7 price-based metrics in `services/metrics/`, computed from a single Alpaca fetch. Full S&P 500 × 7 metrics ≈ 5s (fetch; the maths is ~0.2s). Preview with `uv run python -m stocktown metrics [TICKERS... | --spy]`. Verified: beta of VOO/IVV vs SPY ≈ 1.00.
 
 **Unit tests: metric layer covered.** 27 behavioural tests, `uv run pytest`, ~0.3s. Mutation-checked: 16 deliberately injected bugs each fail at least one test.
 
 **Tooling: uv.** `uv sync` to set up, `uv run …` to run, `uv add [--dev] <pkg>` for dependencies. `uv.lock` pins versions and is committed. Dev dependencies live in `[dependency-groups] dev` in `pyproject.toml`.
 
-**REST API (Phase A): complete.** `uv run uvicorn stocktown.main:app --reload`. `GET /universes/spy` (all positions + sectors + all metrics, one payload), `GET /metrics`, `GET /instruments/{ticker}` (Finnhub popup data). In-memory `SnapshotService` (built at startup ~11s, rebuilt once per New York day, prices up to *yesterday* in New York so a partial session never enters the city; any build failure serves the previous snapshot, and failures back off 5 min before retrying) stands in for persistence.
+**REST API (Phase A): complete.** `uv run uvicorn stocktown.main:app --reload`. `GET /universes/spy` (all positions + sectors + all metrics, one payload), `GET /metrics`, `GET /instruments/{ticker}` (Finnhub popup data). In-memory `SnapshotService` (built at startup ~8s, rebuilt once per New York day, prices up to *yesterday* in New York so a partial session never enters the city; any build failure serves the previous snapshot, and failures back off 5 min before retrying) stands in for persistence.
 
 **Sectors** come from the 11 Select Sector SPDR files (SPY's own sector column is empty) — 500/500 coverage.
 
@@ -50,6 +50,7 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 - **Ticker normalisation via strip-and-uppercase.** Works because SPY and Alpaca share-class punctuation is the only variation. Currently 100% resolution on the S&P 500. Alpaca `/v2/assets` is the source of truth for canonical symbols.
 - **Credentials are masked in `__repr__`.** `AlpacaCredentials`/`FinnhubCredentials` override `__repr__` to print `***`. Prevents accidental leaks via `print()`, logging, or debuggers. `.env` is gitignored.
 - **No premature abstractions.** No `PriceProvider`/`ReferenceProvider` `Protocol` interfaces yet — we have exactly one implementation of each. Added when a second implementation arrives (Phase 3, European provider). Same reasoning for custom exceptions and the DB layer.
+- **Concurrent fetching, capped at 4.** Alpaca bar batches and the 11 SSGA sector workbooks are independent requests, so they're fetched side by side via `ThreadPoolExecutor` (`MAX_CONCURRENT_BATCHES`, `MAX_CONCURRENT_DOWNLOADS`): cold snapshot build ~30s → ~8s, identical data, same request count (Alpaca free tier: 200/min). A stored snapshot (persistence phase) will remove the cold build entirely.
 - **Finnhub rate-limited via `time.sleep(1.1)` between calls.** Naïve but sufficient now that Finnhub is only called per clicked stock. Not extracted to a shared rate-limiter until a second rate-limited API needs one.
 - **Two frontend views, one state.** A Three.js city and a sortable/filterable list, both rendering the same state: two Pinia stores (universe, fundamentals) and a live-bar composable, plus the URL (sort, filters, metric picks, selected ticker). Filters are shared (list filter dims/hides buildings); sort is list-only. Both open the same popup. Rows never stream — realtime stays popup-only. List is built first: quicker, and it verifies the data path and the numbers the city renders.
 - **Vue 3, not React or Angular.** User knows Angular and doesn't want it; Vue's templates and `ref`/`computed` map closely to Angular, and `watch()` fits imperative Three.js updates better than React's re-render model. Three.js is plain imperative code in one component (no TresJS/R3F-style wrapper). Table: TanStack Table (Vue adapter).

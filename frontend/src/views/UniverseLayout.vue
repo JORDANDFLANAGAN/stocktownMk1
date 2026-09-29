@@ -46,7 +46,14 @@ watch(universeId, (id) => store.load(id), { immediate: true })
         Couldn't load the data.
         <button class="text-primary underline" @click="store.load(universeId)">Try again</button>
       </p>
-      <p v-else-if="store.universe === null" class="p-6 text-muted-foreground">Loading…</p>
+      <div v-else-if="store.universe === null" class="p-6" aria-busy="true">
+        <p class="text-sm text-muted-foreground">
+          Building today's snapshot… The first load after the server starts takes a few seconds.
+        </p>
+        <div class="mt-4 space-y-2" aria-hidden="true">
+          <div v-for="bar in 12" :key="bar" class="h-6 animate-pulse rounded bg-muted" />
+        </div>
+      </div>
       <RouterView v-else />
     </main>
   </div>
