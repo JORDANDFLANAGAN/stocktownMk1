@@ -66,8 +66,8 @@ endpoint that computes metrics for an arbitrary ticker list.
 
 ## Backend follow-ups — before Phase 5
 
-The drawer needs all three; they land as small separate commits, then
-`npm run gen:api`.
+The drawer needs all three; they land as small separate commits, each
+running `npm run gen:api` (CI fails on schema drift).
 
 - **`last_close` on `PositionResponse`** — the drawer's live day change needs
   the previous close; the payload carries no price today.

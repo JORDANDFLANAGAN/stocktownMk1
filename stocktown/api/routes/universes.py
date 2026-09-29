@@ -41,5 +41,6 @@ def to_position_response(holding: Holding, snapshot: UniverseSnapshot) -> Positi
         asset_class=EQUITY_ASSET_CLASS,
         sector=holding.sector,
         weight=holding.weight * FRACTION_PER_PERCENT,
+        last_close=snapshot.last_closes.get(holding.ticker),
         metrics={key: values.get(holding.ticker) for key, values in snapshot.metric_values.items()},
     )

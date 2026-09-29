@@ -36,6 +36,7 @@ class UniverseSnapshot:
     session_date: date | None  # the trading day the prices are from
     holdings: tuple[Holding, ...]
     metric_values: Mapping[str, MetricValues]  # metric key → ticker → value
+    last_closes: Mapping[str, float | None]  # ticker → most recent close (None: no price history)
 
 
 class SnapshotService:
@@ -107,7 +108,17 @@ class SnapshotService:
             session_date=data.latest_session,
             holdings=tuple(holdings),
             metric_values=compute_metrics(data),
+            last_closes=last_closes(data),
         )
+
+
+def last_closes(data: MarketData) -> dict[str, float | None]:
+    """Each ticker's most recent close: the reference for the popup's live day change."""
+    closes: dict[str, float | None] = {}
+    for ticker in data.tickers:
+        bars = data.daily_bars.get(ticker)
+        closes[ticker] = bars[-1].close if bars else None
+    return closes
 
 
 def stale_or_unavailable(

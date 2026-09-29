@@ -15,6 +15,7 @@ export const TEST_PORTFOLIO: Universe = {
       asset_class: 'equity',
       sector: 'Technology',
       weight: 0.5,
+      last_close: 185.2,
       metrics: { day_change: 0.012, beta_1y: 1.3 },
     },
     {
@@ -23,6 +24,7 @@ export const TEST_PORTFOLIO: Universe = {
       asset_class: 'equity',
       sector: null,
       weight: 0.3,
+      last_close: 42.75,
       metrics: { day_change: -0.021, beta_1y: null },
     },
     {
@@ -31,6 +33,7 @@ export const TEST_PORTFOLIO: Universe = {
       asset_class: 'etf',
       sector: 'Fixed Income',
       weight: 0.2,
+      last_close: 98.1,
       metrics: { day_change: null, beta_1y: 0.1 },
     },
   ],

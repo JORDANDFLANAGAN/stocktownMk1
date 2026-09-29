@@ -107,6 +107,8 @@ export interface components {
             sector: string | null;
             /** Weight */
             weight: number;
+            /** Last Close */
+            last_close: number | null;
             /** Metrics */
             metrics: {
                 [key: string]: number | null;

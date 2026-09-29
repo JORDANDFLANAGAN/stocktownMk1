@@ -14,6 +14,7 @@ class PositionResponse(BaseModel):
     asset_class: str  # "equity" for now; portfolios will add etf, option, commodity, ...
     sector: str | None
     weight: float  # fraction of the universe; all positions sum to 1.0
+    last_close: float | None  # most recent close in the snapshot; None without price history
     metrics: dict[str, float | None]  # metric key → value (None renders as a hatched roof)
 
 

@@ -6,7 +6,7 @@ from stocktown.domain.models import Holding
 from stocktown.main import create_app
 from stocktown.services.metrics import ALL_METRICS
 from stocktown.services.snapshot import SnapshotService
-from tests.factories import FakeClock, year_of_bars_loader
+from tests.factories import FakeClock, make_series, year_of_bars_loader
 
 # Weights as SSGA publishes them: percentages summing to 100.
 HOLDINGS = [
@@ -26,11 +26,19 @@ def bars_for_all_but_newco(tickers, *, start, end):
     return bars
 
 
-def client_for(holdings: list[Holding]) -> TestClient:
+def two_sessions_of_bars(tickers, *, start, end):
+    """AAPL last closed at 110 and JPM at 205; NEWCO has no price history yet."""
+    closes = {"AAPL": [100.0, 110.0], "JPM": [200.0, 205.0]}
+    return {
+        ticker: make_series(closes[ticker], ticker=ticker) for ticker in tickers if ticker in closes
+    }
+
+
+def client_for(holdings: list[Holding], *, bars_loader=bars_for_all_but_newco) -> TestClient:
     app = create_app(warm_on_startup=False)
     snapshots = SnapshotService(
         universe_loaders={"spy": lambda: holdings},
-        bars_loader=bars_for_all_but_newco,
+        bars_loader=bars_loader,
         today=FakeClock(),
     )
     app.dependency_overrides[get_snapshot_service] = lambda: snapshots
@@ -55,6 +63,19 @@ def test_position_weights_are_fractions_that_sum_to_one():
     positions = client_for(HOLDINGS).get("/api/universes/spy").json()["positions"]
 
     assert [position["weight"] for position in positions] == pytest.approx([0.6, 0.4])
+
+
+def test_each_position_carries_its_latest_close_or_null_without_price_history():
+    newly_listed = Holding(ticker="NEWCO", name="NEWLY LISTED", weight=0.0)
+    client = client_for(HOLDINGS + [newly_listed], bars_loader=two_sessions_of_bars)
+
+    positions = client.get("/api/universes/spy").json()["positions"]
+
+    assert {position["ticker"]: position["last_close"] for position in positions} == {
+        "AAPL": 110.0,
+        "JPM": 205.0,
+        "NEWCO": None,
+    }
 
 
 def test_an_unknown_universe_returns_404():
