@@ -56,7 +56,7 @@ const columns = column.columns([
       id: metric.key,
       header: metric.label,
       sortUndefined: 'last',
-      cell: ({ getValue }) => formatMetricValue(getValue() ?? null, metric.unit),
+      cell: ({ getValue }) => formatMetricValue(getValue() ?? null, metric),
     }),
   ),
 ])

@@ -39,6 +39,17 @@ describe('TickerDrawer', () => {
     expect(drawer.textContent).not.toContain('Close, 2026-09-25')
   })
 
+  it("lists every metric in the catalogue with the position's values", async () => {
+    await renderAppAt('/test-portfolio/list/ticker/AAA?cols=beta_1y', testPortfolioApi().api)
+
+    const metrics = await screen.findByRole('region', { name: 'Metrics' })
+
+    expect(metrics.textContent).toContain('Day change')
+    expect(metrics.textContent).toContain('+1.2%')
+    expect(metrics.textContent).toContain('Beta (1y)')
+    expect(metrics.textContent).toContain('1.30×')
+  })
+
   it('says so when the ticker is not in the universe', async () => {
     await renderAppAt('/test-portfolio/list/ticker/ZZZ', testPortfolioApi().api)
 

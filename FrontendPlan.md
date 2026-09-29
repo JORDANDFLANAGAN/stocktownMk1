@@ -111,7 +111,7 @@ long names truncated with the full name on hover.
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 74 frontend (Vitest) + 77 backend, all mutation-verified.
+Tests so far: 79 frontend (Vitest) + 77 backend, all mutation-verified.
 Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`, `TEST_CATALOGUE`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),
 `src/__tests__/renderApp.ts` (`renderAppAt`, `testPortfolioApi`; always
@@ -134,7 +134,10 @@ returns to the parent view (`route.matched`) with the query kept. Header
 done — `DrawerHeader.vue` + pure `lib/quote.ts` (`headlineQuote`): live
 price vs `last_close` once a bar's `session_date` is after the snapshot's,
 otherwise last close + `day_change` ("Close, {date}"); `formatPrice`;
-`OPEN_SOCKET_KEY` lets tests inject sockets.
+`OPEN_SOCKET_KEY` lets tests inject sockets. Metrics section done —
+`CityMetricsSection.vue` lists every catalogue metric ("At the close,
+{date}", since they're from the snapshot even while the header is live);
+`formatMetricValue(value, metric)` puts "+" on signed metrics, in the table too.
 
 **Deliverables:**
 

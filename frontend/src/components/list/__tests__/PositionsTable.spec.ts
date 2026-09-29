@@ -56,15 +56,29 @@ describe('PositionsTable', () => {
     expect(tickersInOrder()).toEqual(['AAA', 'CCC', 'BBB'])
   })
 
-  it('formats each value by its unit and shows missing values as a dash', () => {
+  it('formats each value by its catalogue entry and shows missing values as a dash', () => {
     renderTable()
 
-    const bbbRow = screen.getByRole('row', { name: /BBB/ })
-    expect(
-      within(bbbRow)
+    const cellTexts = (row: HTMLElement) =>
+      within(row)
         .getAllByRole('cell')
-        .map((cell) => cell.textContent?.trim()),
-    ).toEqual(['BBB', 'Beta Holdings', 'Unclassified', '30.00%', '−2.1%', '—'])
+        .map((cell) => cell.textContent?.trim())
+    expect(cellTexts(screen.getByRole('row', { name: /AAA/ }))).toEqual([
+      'AAA',
+      'Alpha Corp',
+      'Technology',
+      '50.00%',
+      '+1.2%',
+      '1.30×',
+    ])
+    expect(cellTexts(screen.getByRole('row', { name: /BBB/ }))).toEqual([
+      'BBB',
+      'Beta Holdings',
+      'Unclassified',
+      '30.00%',
+      '−2.1%',
+      '—',
+    ])
   })
 
   it('sorts by the column it is given, with missing values last either way', () => {

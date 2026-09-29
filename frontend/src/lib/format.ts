@@ -30,12 +30,20 @@ export function formatRatio(value: number, digits = 2): string {
   return `${formatWithSign(value, options, false)}×`
 }
 
-/** Formats a metric value by its catalogue unit; "—" when the metric has no value for this position. */
-export function formatMetricValue(value: number | null, unit: MetricInfo['unit']): string {
+/**
+ * Formats a metric value by its catalogue entry: its unit, and a "+" on gains when the metric is
+ * signed. "—" when the metric has no value for this position.
+ */
+export function formatMetricValue(
+  value: number | null,
+  metric: Pick<MetricInfo, 'unit' | 'signed'>,
+): string {
   if (value === null) {
     return NO_VALUE
   }
-  return unit === 'percent' ? formatPercent(value) : formatRatio(value)
+  return metric.unit === 'percent'
+    ? formatPercent(value, { showPlus: metric.signed })
+    : formatRatio(value)
 }
 
 /** Uses a typographic minus, and never puts a sign on a value that rounds to zero. */

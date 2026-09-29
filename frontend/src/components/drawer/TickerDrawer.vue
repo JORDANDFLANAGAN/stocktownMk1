@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { useLiveBar } from '@/composables/useLiveBar'
 import { useUniverseStore } from '@/stores/universe'
+import CityMetricsSection from './CityMetricsSection.vue'
 import DrawerHeader from './DrawerHeader.vue'
 
 const props = defineProps<{ ticker: string }>()
@@ -39,6 +40,13 @@ function close(): void {
         :session-date="store.universe?.session_date ?? null"
         :bar="bar"
       />
+      <div v-if="position" class="flex-1 overflow-y-auto px-4 pb-4">
+        <CityMetricsSection
+          :position="position"
+          :metrics="store.metricsCatalogue"
+          :session-date="store.universe?.session_date ?? null"
+        />
+      </div>
     </SheetContent>
   </Sheet>
 </template>

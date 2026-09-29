@@ -43,12 +43,22 @@ describe('formatRatio', () => {
 })
 
 describe('formatMetricValue', () => {
+  const VOLATILITY = { unit: 'percent', signed: false } as const
+  const BETA = { unit: 'ratio', signed: false } as const
+  const RETURN = { unit: 'percent', signed: true } as const
+
   it('formats by the metric unit from the catalogue', () => {
-    expect(formatMetricValue(0.1, 'percent')).toBe('10.0%')
-    expect(formatMetricValue(1.2, 'ratio')).toBe('1.20×')
+    expect(formatMetricValue(0.1, VOLATILITY)).toBe('10.0%')
+    expect(formatMetricValue(1.2, BETA)).toBe('1.20×')
+  })
+
+  it('marks gains with a plus only on signed metrics', () => {
+    expect(formatMetricValue(0.1, RETURN)).toBe('+10.0%')
+    expect(formatMetricValue(-0.1, RETURN)).toBe(`${MINUS}10.0%`)
+    expect(formatMetricValue(0.1, VOLATILITY)).toBe('10.0%')
   })
 
   it('shows a dash when the position has no value for the metric', () => {
-    expect(formatMetricValue(null, 'percent')).toBe('—')
+    expect(formatMetricValue(null, VOLATILITY)).toBe('—')
   })
 })
