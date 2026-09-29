@@ -32,6 +32,7 @@ class MetricInfoResponse(BaseModel):
     unit: Unit
     scale: Scale
     refresh: Refresh
+    signed: bool  # gains vs losses: diverging palette, "+" on gains
 
 
 class InstrumentResponse(BaseModel):

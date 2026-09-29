@@ -25,6 +25,7 @@ class Beta1y(Metric):
     unit = Unit.RATIO
     scale = Scale.LINEAR
     refresh = Refresh.DAILY
+    signed = False
 
     def compute(self, data: MarketData) -> MetricValues:
         start_date = one_year_before(data.as_of)

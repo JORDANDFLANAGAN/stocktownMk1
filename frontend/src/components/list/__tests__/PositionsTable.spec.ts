@@ -7,8 +7,22 @@ import { TEST_PORTFOLIO } from '@/__tests__/fixtures'
 import PositionsTable from '../PositionsTable.vue'
 
 const METRICS: MetricInfo[] = [
-  { key: 'day_change', label: 'Day change', unit: 'percent', scale: 'linear', refresh: 'daily' },
-  { key: 'beta_1y', label: 'Beta (1y)', unit: 'ratio', scale: 'linear', refresh: 'daily' },
+  {
+    key: 'day_change',
+    label: 'Day change',
+    unit: 'percent',
+    scale: 'linear',
+    refresh: 'daily',
+    signed: true,
+  },
+  {
+    key: 'beta_1y',
+    label: 'Beta (1y)',
+    unit: 'ratio',
+    scale: 'linear',
+    refresh: 'daily',
+    signed: false,
+  },
 ]
 
 function renderTable(props: { sorting?: SortingState; selectedTicker?: string } = {}) {

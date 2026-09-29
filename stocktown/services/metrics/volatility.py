@@ -23,6 +23,7 @@ class Volatility30d(Metric):
     unit = Unit.PERCENT
     scale = Scale.PERCENTILE
     refresh = Refresh.DAILY
+    signed = False
 
     def compute(self, data: MarketData) -> MetricValues:
         return {

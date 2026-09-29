@@ -19,6 +19,7 @@ class OffFiftyTwoWeekHigh(Metric):
     unit = Unit.PERCENT
     scale = Scale.PERCENTILE
     refresh = Refresh.DAILY
+    signed = False
 
     def compute(self, data: MarketData) -> MetricValues:
         start_date = one_year_before(data.as_of)

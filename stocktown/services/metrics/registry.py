@@ -14,7 +14,14 @@ from stocktown.services.metrics.one_year_return import OneYearReturn
 from stocktown.services.metrics.relative_volume import RelativeVolume
 from stocktown.services.metrics.volatility import Volatility30d
 
-REQUIRED_METRIC_ATTRIBUTES: Final[tuple[str, ...]] = ("key", "label", "unit", "scale", "refresh")
+REQUIRED_METRIC_ATTRIBUTES: Final[tuple[str, ...]] = (
+    "key",
+    "label",
+    "unit",
+    "scale",
+    "refresh",
+    "signed",
+)
 
 # Display order for the frontend dropdown. Adding a metric = one class + one line here.
 ALL_METRICS: Final[tuple[Metric, ...]] = (

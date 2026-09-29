@@ -16,6 +16,7 @@ class DayChange(Metric):
     # Linear keeps the sign meaningful for the red–grey–green diverging colour scale.
     scale = Scale.LINEAR
     refresh = Refresh.DAILY
+    signed = True
 
     def compute(self, data: MarketData) -> MetricValues:
         return {

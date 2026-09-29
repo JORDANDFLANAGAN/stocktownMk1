@@ -91,6 +91,8 @@ export interface components {
             unit: components["schemas"]["Unit"];
             scale: components["schemas"]["Scale"];
             refresh: components["schemas"]["Refresh"];
+            /** Signed */
+            signed: boolean;
         };
         /** PositionResponse */
         PositionResponse: {

@@ -45,6 +45,8 @@ class Metric(ABC):
     unit: ClassVar[Unit]
     scale: ClassVar[Scale]
     refresh: ClassVar[Refresh]
+    # True when the sign is the point (gains vs losses): diverging palette centred on 0, "+" on gains.
+    signed: ClassVar[bool]
 
     @abstractmethod
     def compute(self, data: MarketData) -> MetricValues: ...

@@ -19,6 +19,7 @@ class RelativeVolume(Metric):
     unit = Unit.RATIO
     scale = Scale.PERCENTILE
     refresh = Refresh.DAILY
+    signed = False
 
     def compute(self, data: MarketData) -> MetricValues:
         return {
