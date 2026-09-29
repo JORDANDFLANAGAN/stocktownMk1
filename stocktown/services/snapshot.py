@@ -8,15 +8,14 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Final
-from zoneinfo import ZoneInfo
 
+from stocktown.domain.markets import US_MARKET_TIMEZONE
 from stocktown.domain.models import Holding
 from stocktown.exceptions import UnknownUniverseError, UpstreamUnavailableError
 from stocktown.providers.alpaca import load_daily_bars
 from stocktown.services.metrics import MarketData, MetricValues, compute_metrics
 from stocktown.services.metrics.market_data import DailyBarsLoader
 
-US_MARKET_TIMEZONE: Final = ZoneInfo("America/New_York")
 # After a failed build, serve what we have (or 503) instead of rebuilding on every request.
 RETRY_FAILED_BUILD_AFTER_SECONDS: Final[int] = 300
 

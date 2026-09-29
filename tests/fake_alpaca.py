@@ -66,6 +66,10 @@ class FakeConnection:
             yield item
 
 
-def minute_bar(ticker: str, *, close: float) -> MinuteBar:
-    minute = datetime(2026, 9, 28, 14, 30, tzinfo=timezone.utc)
+def minute_bar(
+    ticker: str,
+    *,
+    close: float,
+    minute: datetime = datetime(2026, 9, 28, 14, 30, tzinfo=timezone.utc),
+) -> MinuteBar:
     return MinuteBar(ticker, minute, close, close, close, close, 100)

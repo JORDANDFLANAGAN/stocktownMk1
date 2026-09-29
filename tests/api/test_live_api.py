@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 
 import anyio
 import httpx
@@ -52,6 +53,19 @@ def test_the_popup_gets_the_latest_price_immediately_then_live_bars():
 
     assert (first["type"], first["close"]) == ("bar", 340.0)
     assert (second["type"], second["close"]) == ("bar", 341.0)
+
+
+def test_bars_are_dated_by_the_new_york_trading_day_not_the_utc_date():
+    friday_evening_in_new_york = minute_bar(
+        "AAPL", close=341.0, minute=datetime(2026, 9, 26, 1, 30, tzinfo=timezone.utc)
+    )  # 21:30 on Friday in New York, already Saturday in UTC
+    alpaca = FakeAlpaca(scripted_bars=[friday_evening_in_new_york])
+
+    with client_for(alpaca).websocket_connect("/api/live?ticker=aapl") as popup:
+        popup.receive_json()  # the latest bar, sent first
+        live_bar = popup.receive_json()
+
+    assert live_bar["session_date"] == "2026-09-25"
 
 
 def test_live_bars_still_arrive_when_the_latest_price_cannot_be_loaded():

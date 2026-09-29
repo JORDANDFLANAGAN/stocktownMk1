@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from stocktown.domain.markets import us_session_date
 from stocktown.domain.models import MinuteBar
 from stocktown.services.metrics import Refresh, Scale, Unit
 
@@ -50,6 +51,7 @@ class LiveBarMessage(BaseModel):
     type: Literal["bar"] = "bar"
     ticker: str
     minute_utc: datetime
+    session_date: date  # the market's trading day for this bar, so clients need no time-zone logic
     open: float
     high: float
     low: float
@@ -61,6 +63,7 @@ class LiveBarMessage(BaseModel):
         return cls(
             ticker=bar.ticker,
             minute_utc=bar.minute_utc,
+            session_date=us_session_date(bar.minute_utc),
             open=bar.open,
             high=bar.high,
             low=bar.low,
