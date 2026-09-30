@@ -161,7 +161,7 @@ function ariaSort(direction: false | 'asc' | 'desc') {
         :ref="(element) => rememberRow(row.id, element)"
         :aria-selected="row.id === selectedTicker"
         :tabindex="row.id === tabStop ? 0 : -1"
-        class="scroll-mt-10 cursor-pointer border-b hover:bg-muted aria-selected:bg-primary/10"
+        class="scroll-mt-10 cursor-pointer border-b outline-none hover:bg-muted aria-selected:bg-primary/10 focus-visible:bg-muted [&:focus-visible>td:first-child]:shadow-[inset_3px_0_0_var(--color-primary)]"
         @click="emit('select', row.id)"
         @keydown.enter="emit('select', row.id)"
         @keydown="onRowKeydown($event, index)"
