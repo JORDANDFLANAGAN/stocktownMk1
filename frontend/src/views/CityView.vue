@@ -3,13 +3,14 @@ import { computed, ref } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 
 import type { MetricInfo } from '@/api/client'
+import BuildingTooltip from '@/components/city/BuildingTooltip.vue'
 import CityCanvas from '@/components/city/CityCanvas.vue'
 import MetricPicker from '@/components/city/MetricPicker.vue'
 import ViewModeToggle from '@/components/city/ViewModeToggle.vue'
 import { useQueryHeight } from '@/composables/useQueryState'
 import { styleBuildings } from '@/lib/cityAppearance'
 import { layoutCity } from '@/lib/cityLayout'
-import type { CityViewMode } from '@/lib/cityView'
+import type { BuildingHover, CityViewMode } from '@/lib/cityView'
 import { useUniverseStore } from '@/stores/universe'
 
 /** What the heights show until the viewer picks; the list's first default column. */
@@ -21,6 +22,10 @@ const store = useUniverseStore()
 const height = useQueryHeight(DEFAULT_HEIGHT_METRIC)
 const heightMetric = computed(() => metricOrFirst(height.value))
 const viewMode = ref<CityViewMode>('3d')
+const hovered = ref<BuildingHover | null>(null)
+const hoveredPosition = computed(() =>
+  store.positions.find((position) => position.ticker === hovered.value?.ticker),
+)
 
 const layout = computed(() => layoutCity(store.positions))
 const buildings = computed(() =>
@@ -41,7 +46,16 @@ function metricOrFirst(key: string): MetricInfo {
 <template>
   <section class="relative h-full">
     <template v-if="canDraw3d">
-      <CityCanvas :buildings="buildings" :view-mode="viewMode" />
+      <CityCanvas
+        :buildings="buildings"
+        :view-mode="viewMode"
+        @hover="(hover) => (hovered = hover)"
+      />
+      <BuildingTooltip
+        v-if="hovered && hoveredPosition"
+        :position="hoveredPosition"
+        :hover="hovered"
+      />
       <div class="absolute top-3 left-3">
         <MetricPicker
           label="Height"

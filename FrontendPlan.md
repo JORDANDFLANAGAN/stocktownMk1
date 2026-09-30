@@ -36,7 +36,7 @@ anything here disagrees), `README.md` (setup, commands), `StockTownOutline.md`
 | Styling | Tailwind v4 + shadcn-vue (`vega`, zinc neutral, teal primary, self-hosted Inter). Plain Tailwind markup until a shadcn component earns its place (the drawer's Sheet, the column picker's DropdownMenu). `shadcn-vue add` inserts a Google Fonts `@import` into `main.css` each time — delete it (Inter is self-hosted) |
 | Formatting | `src/lib/format.ts` (`Intl.NumberFormat('en-US')`, typographic minus), driven by `metric.unit` |
 | Popup | Right-side drawer, nested child route of each view; sections: header / city metrics / fundamentals / live |
-| City | Treemap of treemaps (sector districts → holdings, padding = streets); one `InstancedMesh` of unit boxes; `MapControls`, polar clamp `[15°, 75°]`; colour = sector (ColorBrewer Set3 without its grey; grey = Unclassified); hover/select outline. Route lazy-loaded so list-only visits never download Three.js |
+| City | Treemap of treemaps (sector districts → holdings, padding = streets); one `InstancedMesh` of unit boxes; `MapControls`, polar clamp `[15°, 75°]`; colour = sector (ColorBrewer Set3 without its grey; grey = Unclassified); hover/select glow outline; top-down labels (ticker + weight). Route lazy-loaded so list-only visits never download Three.js |
 | Testing | Vitest + Testing Library; behavioural names; fakes injected, no `vi.mock`; every test mutation-verified; non-SPY fixture (`TEST_PORTFOLIO`) |
 | CI | One workflow: backend (uv, pytest) + frontend (schema drift, lint, Prettier, tests, build) |
 | Prod serving | Deferred until deployment; likely FastAPI serving `frontend/dist` same-origin with an `index.html` fallback for deep links |
@@ -118,7 +118,7 @@ it gets `tabindex="0"` and its visible text as `aria-label`. jsdom has no
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 131 frontend (Vitest) + 78 backend, all mutation-verified.
+Tests so far: 141 frontend (Vitest) + 78 backend, all mutation-verified.
 Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`, `TEST_CATALOGUE`,
 `TEST_INSTRUMENT`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),
@@ -218,9 +218,9 @@ Decisions (tune once seen in the browser):
 
 Canvas skeleton done (`components/city/CityCanvas.vue`, `views/CityView.vue`):
 
-- `CityView` is lazy-loaded; Three.js lives in its own chunk (~150 kB gzip;
+- `CityView` is lazy-loaded; Three.js lives in its own chunk (~160 kB gzip;
   main bundle ~120 kB after the sector Combobox). The build warns that this
-  chunk (~590 kB minified, mostly Three.js) is over Vite's 500 kB default —
+  chunk (~620 kB minified, mostly Three.js) is over Vite's 500 kB default —
   expected, and deliberately not silenced: `chunkSizeWarningLimit` is global,
   so raising it would also stop guarding the main bundle. Investigate any
   *other* chunk over the limit.
@@ -263,6 +263,23 @@ Height picker, sector colours and top-down view done
   state, like orbit and zoom. `topDownFrustum` (pure) fits the city to the
   screen's shorter side.
 
+Hover + tooltip done (`components/city/BuildingTooltip.vue`; picking and
+glow in `CityCanvas`):
+
+- Raycast once per animation frame, not per `pointermove`; cleared while
+  dragging; re-picked on zoom or a Height pick with the pointer still.
+- Glow instead of recolouring (a product call): a 3px blue-600 fat-line
+  outline (`LineSegments2`) plus a 25%-opacity halo about 0.4 units wider.
+  `OutlinePass` would need post-processing and can't outline a single
+  instance. The selected building will keep the same glow.
+- Tooltip: ticker, name, sector beside the pointer, flipped towards the
+  middle in the right/bottom halves. `CityCanvas` emits the ticker and
+  pointer position; `CityView` looks up the position.
+- Top-down labels (`CSS2DRenderer`, so sharp at any zoom): ticker + weight
+  when the plot has room on screen, ticker only when it's short, nothing on
+  tiny plots; refitted on every camera change (`labelFit`,
+  `topDownPixelsPerUnit`, pure). None in 3D. Labels let the pointer through.
+
 **Deliverables:**
 
 - Router: `CityView` loaded with `() => import(...)` so Three.js is only
@@ -282,9 +299,9 @@ Height picker, sector colours and top-down view done
   every frame; dispose everything on unmount), `SectorLabels.vue`
   (`CSS2DRenderer`), `BuildingTooltip.vue`, `Legend.vue` (sector key).
 - Filters shared with the list: filtered-out buildings are dimmed.
-- Hover: raycast on `pointermove` (per animation frame) → outline + 1.05×.
-  Click → `city-ticker` route with the query kept; selected building gets a
-  thicker outline.
+- Hover: raycast once per animation frame → glow outline + tooltip.
+  Click → `city-ticker` route with the query kept; the selected building
+  keeps the glow.
 
 **Tests:** `cityLayout.spec.ts` (area proportional to weight; one district
 per sector containing its buildings; street/alley gaps between every pair),
@@ -292,7 +309,9 @@ per sector containing its buildings; street/alley gaps between every pair),
 fallback; null → height 1), `cityAppearance.spec.ts` (height by metric,
 colour by sector, matched by ticker; 11 distinct non-grey sector colours;
 Unclassified always grey; palette repeats), `cityView.spec.ts` (the
-top-down frustum fits wide, tall and square screens). No component
+top-down frustum fits wide, tall and square screens; label fit thresholds;
+pixels per unit), `BuildingTooltip.spec.ts` (content; flips per axis). No
+component
 test for `CityCanvas` (WebGL in jsdom isn't worth it) — browser check instead.
 
 **Done when:** `/spy/city` renders the city with visible streets; pickers

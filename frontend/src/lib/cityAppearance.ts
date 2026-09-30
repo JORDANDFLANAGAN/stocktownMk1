@@ -15,6 +15,7 @@ const SECTOR_PALETTE = schemeSet3.filter((colour) => colour !== '#d9d9d9')
 export interface StyledBuilding extends BuildingPlot {
   height: number
   colour: string
+  weight: number
 }
 
 /**
@@ -33,11 +34,15 @@ export function styleBuildings(
   const colourOf = sectorColours(sectorsIn(positions))
   const byTicker = new Map(positions.map((position) => [position.ticker, position]))
 
-  return plots.map((plot) => ({
-    ...plot,
-    height: heightOf(byTicker.get(plot.ticker)?.metrics[heightMetric.key] ?? null),
-    colour: colourOf.get(plot.sector) ?? UNCLASSIFIED_COLOUR,
-  }))
+  return plots.map((plot) => {
+    const position = byTicker.get(plot.ticker)
+    return {
+      ...plot,
+      height: heightOf(position?.metrics[heightMetric.key] ?? null),
+      colour: colourOf.get(plot.sector) ?? UNCLASSIFIED_COLOUR,
+      weight: position?.weight ?? 0,
+    }
+  })
 }
 
 /**

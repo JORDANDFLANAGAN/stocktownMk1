@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { topDownFrustum } from '../cityView'
+import { labelFit, topDownFrustum, topDownPixelsPerUnit } from '../cityView'
 
 describe('topDownFrustum', () => {
   it('fits the city to the height of a wide screen, with room either side', () => {
@@ -13,5 +13,32 @@ describe('topDownFrustum', () => {
 
   it('fits the city exactly on a square screen', () => {
     expect(topDownFrustum(100, 1)).toEqual({ left: -50, right: 50, top: 50, bottom: -50 })
+  })
+})
+
+describe('labelFit', () => {
+  it('shows no label on a plot too narrow or too short for a ticker', () => {
+    expect(labelFit(43, 40)).toBe('none')
+    expect(labelFit(80, 15)).toBe('none')
+  })
+
+  it('shows just the ticker when there is room for one line', () => {
+    expect(labelFit(44, 16)).toBe('ticker')
+    expect(labelFit(80, 29)).toBe('ticker')
+  })
+
+  it('adds the weight when there is room for two lines', () => {
+    expect(labelFit(44, 30)).toBe('ticker-and-weight')
+  })
+})
+
+describe('topDownPixelsPerUnit', () => {
+  it("follows the screen's shorter side, which the frame fills", () => {
+    expect(topDownPixelsPerUnit(120, 1200, 600, 1)).toBe(5)
+    expect(topDownPixelsPerUnit(120, 600, 1200, 1)).toBe(5)
+  })
+
+  it('grows with the zoom', () => {
+    expect(topDownPixelsPerUnit(120, 1200, 600, 3)).toBe(15)
   })
 })

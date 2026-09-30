@@ -3,26 +3,43 @@ import {
   BoxGeometry,
   Color,
   DirectionalLight,
+  EdgesGeometry,
+  Group,
   HemisphereLight,
   InstancedMesh,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
   OrthographicCamera,
   PerspectiveCamera,
   PlaneGeometry,
+  Raycaster,
   Scene,
+  Vector2,
   Vector3,
   WebGLRenderer,
 } from 'three'
 import { MapControls } from 'three/addons/controls/MapControls.js'
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js'
+import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
 import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 
 import type { StyledBuilding } from '@/lib/cityAppearance'
 import { CITY_SIZE } from '@/lib/cityLayout'
-import { topDownFrustum, type CityViewMode } from '@/lib/cityView'
+import {
+  labelFit,
+  topDownFrustum,
+  topDownPixelsPerUnit,
+  type BuildingHover,
+  type CityViewMode,
+} from '@/lib/cityView'
+import { formatPercent } from '@/lib/format'
 
 const props = defineProps<{ buildings: StyledBuilding[]; viewMode: CityViewMode }>()
+const emit = defineEmits<{ hover: [hover: BuildingHover | null] }>()
 
 const GROUND_COLOUR = '#e4e4e7' // zinc-200
 const BACKGROUND_COLOUR = '#fafafa' // zinc-50
@@ -42,14 +59,32 @@ const TOP_DOWN_HEIGHT = 200
 const TOP_DOWN_FRAME = CITY_SIZE * GROUND_MARGIN // the ground fills the screen's shorter side
 const TOP_DOWN_MAX_ZOOM = 12
 
+// Hover: a bright outline with a soft halo of the same colour around the building.
+const GLOW_COLOUR = '#2563eb' // blue-600: stands out from every Set3 pastel and the pale ground
+const GLOW_LINE_WIDTH = 3 // px
+const GLOW_HALO_OPACITY = 0.25
+const GLOW_HALO_PADDING = 0.4 // world units the halo reaches past the building
+const GLOW_OUTLINE_INFLATE = 0.02 // lifts the outline off the faces so they don't hide it
+const GLOW_HALO_LIFT = 0.01 // the halo's base sits just above the ground, so they don't flicker
+
 interface CityScene {
   renderer: WebGLRenderer
+  labelRenderer: CSS2DRenderer
   scene: Scene
   perspectiveCamera: PerspectiveCamera
   topDownCamera: OrthographicCamera
   camera: PerspectiveCamera | OrthographicCamera // whichever the view mode uses
   controls: MapControls
+  glow: Group
+  outline: LineSegments2
+  halo: Mesh
   resizeObserver: ResizeObserver
+}
+
+interface BuildingLabel {
+  object: CSS2DObject
+  weightLine: HTMLElement
+  building: StyledBuilding
 }
 
 const container = useTemplateRef<HTMLDivElement>('container')
@@ -60,8 +95,24 @@ const buildingMaterial = new MeshStandardMaterial() // white, tinted per buildin
 const groundGeometry = new PlaneGeometry(CITY_SIZE * GROUND_MARGIN, CITY_SIZE * GROUND_MARGIN)
 const groundMaterial = new MeshStandardMaterial({ color: GROUND_COLOUR })
 
+const edges = new EdgesGeometry(boxGeometry)
+const outlineGeometry = new LineSegmentsGeometry().fromEdgesGeometry(edges)
+edges.dispose() // only needed to build the outline
+const outlineMaterial = new LineMaterial({ color: GLOW_COLOUR, linewidth: GLOW_LINE_WIDTH })
+const haloMaterial = new MeshBasicMaterial({
+  color: GLOW_COLOUR,
+  transparent: true,
+  opacity: GLOW_HALO_OPACITY,
+  depthWrite: false,
+})
+
 let city: CityScene | null = null
 let buildingsMesh: InstancedMesh | null = null
+let labels: BuildingLabel[] = []
+const raycaster = new Raycaster()
+let hoveredIndex: number | null = null
+let lastPointer: PointerEvent | null = null // null while the pointer is off the city or dragging
+let hoverFrame: number | null = null // at most one pick per animation frame
 
 onMounted(() => {
   city = createScene(container.value!)
@@ -77,6 +128,11 @@ function createScene(host: HTMLElement): CityScene {
   renderer.setPixelRatio(window.devicePixelRatio)
   host.appendChild(renderer.domElement)
 
+  const labelRenderer = new CSS2DRenderer()
+  // over the canvas; the pointer passes through to it
+  labelRenderer.domElement.className = 'pointer-events-none absolute inset-0'
+  host.appendChild(labelRenderer.domElement)
+
   const scene = new Scene()
   scene.background = new Color(BACKGROUND_COLOUR)
   scene.add(new HemisphereLight(0xffffff, 0x8a8a8a, 2))
@@ -86,6 +142,13 @@ function createScene(host: HTMLElement): CityScene {
   const ground = new Mesh(groundGeometry, groundMaterial)
   ground.rotation.x = -Math.PI / 2 // PlaneGeometry stands upright; lay it flat
   scene.add(ground)
+
+  const outline = new LineSegments2(outlineGeometry, outlineMaterial)
+  const halo = new Mesh(boxGeometry, haloMaterial)
+  const glow = new Group()
+  glow.add(outline, halo)
+  glow.visible = false
+  scene.add(glow)
 
   const perspectiveCamera = new PerspectiveCamera(45, 1, 0.5, 1000)
   const topDownCamera = new OrthographicCamera(-1, 1, 1, -1, 0.5, 1000) // fitted in fitTo
@@ -97,17 +160,24 @@ function createScene(host: HTMLElement): CityScene {
   controls.maxDistance = MAX_DISTANCE
   controls.maxZoom = TOP_DOWN_MAX_ZOOM // orthographic zoom; the distance limits cover 3D
   controls.addEventListener('change', render) // draw on change, not every frame
+  controls.addEventListener('change', scheduleHover) // a zoom moves the city under a still pointer
+  renderer.domElement.addEventListener('pointermove', onPointerMove)
+  renderer.domElement.addEventListener('pointerleave', clearHover)
 
   const resizeObserver = new ResizeObserver(() => fitTo(host))
   resizeObserver.observe(host)
 
   return {
     renderer,
+    labelRenderer,
     scene,
     perspectiveCamera,
     topDownCamera,
     camera: perspectiveCamera,
     controls,
+    glow,
+    outline,
+    halo,
     resizeObserver,
   }
 }
@@ -151,6 +221,124 @@ function showBuildings(buildings: StyledBuilding[]): void {
     buildingsMesh!.setColorAt(index, colour.set(building.colour))
   })
   city.scene.add(buildingsMesh)
+  highlight(null) // the old index may point at a different building now
+  showLabels(buildings)
+  scheduleHover() // heights changed: re-pick under a still pointer
+}
+
+/** One label per building, on its roof; only the top-down view shows them. */
+function showLabels(buildings: StyledBuilding[]): void {
+  if (city === null) return
+  for (const label of labels) label.object.removeFromParent() // also removes its element
+  labels = buildings.map(createLabel)
+  for (const label of labels) city.scene.add(label.object)
+  render()
+}
+
+function createLabel(building: StyledBuilding): BuildingLabel {
+  const ticker = document.createElement('div')
+  ticker.className = 'font-semibold'
+  ticker.textContent = building.ticker
+  const weightLine = document.createElement('div')
+  weightLine.textContent = formatPercent(building.weight, { digits: 2 })
+  const element = document.createElement('div')
+  element.className = 'text-center text-[11px] leading-tight text-zinc-900'
+  element.append(ticker, weightLine)
+
+  const object = new CSS2DObject(element)
+  object.position.set(building.x, building.height, building.z)
+  return { object, weightLine, building }
+}
+
+/** Top-down only: each label shows as much as fits its plot at the current zoom. */
+function fitLabels(): void {
+  if (city === null) return
+  const topDown = city.camera === city.topDownCamera
+  const { clientWidth, clientHeight } = city.renderer.domElement
+  const pixelsPerUnit = topDownPixelsPerUnit(
+    TOP_DOWN_FRAME,
+    clientWidth,
+    clientHeight,
+    city.topDownCamera.zoom,
+  )
+  for (const label of labels) {
+    const fit = topDown
+      ? labelFit(label.building.width * pixelsPerUnit, label.building.depth * pixelsPerUnit)
+      : 'none'
+    label.object.visible = fit !== 'none'
+    label.weightLine.hidden = fit !== 'ticker-and-weight'
+  }
+}
+
+function onPointerMove(event: PointerEvent): void {
+  if (event.buttons !== 0) {
+    clearHover() // dragging the camera, not pointing at a building
+    return
+  }
+  lastPointer = event
+  scheduleHover()
+}
+
+function scheduleHover(): void {
+  if (lastPointer !== null) {
+    hoverFrame ??= requestAnimationFrame(hoverAtPointer)
+  }
+}
+
+/** Picks the building under the pointer, highlights it, and reports it for the tooltip. */
+function hoverAtPointer(): void {
+  hoverFrame = null
+  if (city === null || buildingsMesh === null || lastPointer === null) return
+  const bounds = city.renderer.domElement.getBoundingClientRect()
+  const x = lastPointer.clientX - bounds.left
+  const y = lastPointer.clientY - bounds.top
+  // the raycaster wants the pointer in -1..1 across the canvas, y pointing up
+  const pointer = new Vector2((x / bounds.width) * 2 - 1, 1 - (y / bounds.height) * 2)
+  raycaster.setFromCamera(pointer, city.camera)
+  const index = raycaster.intersectObject(buildingsMesh)[0]?.instanceId ?? null
+
+  highlight(index)
+  emit(
+    'hover',
+    index === null
+      ? null
+      : {
+          ticker: props.buildings[index]!.ticker,
+          x,
+          y,
+          canvasWidth: bounds.width,
+          canvasHeight: bounds.height,
+        },
+  )
+}
+
+function clearHover(): void {
+  lastPointer = null
+  highlight(null)
+  emit('hover', null)
+}
+
+/** Puts the glow around the hovered building, or hides it. */
+function highlight(index: number | null): void {
+  if (city === null || index === hoveredIndex) return
+  hoveredIndex = index
+  const building = index === null ? undefined : props.buildings[index]
+  city.glow.visible = building !== undefined
+  if (building !== undefined) {
+    const { x, z, width, height, depth } = building
+    city.outline.position.set(x, 0, z)
+    city.outline.scale.set(
+      width + GLOW_OUTLINE_INFLATE,
+      height + GLOW_OUTLINE_INFLATE,
+      depth + GLOW_OUTLINE_INFLATE,
+    )
+    city.halo.position.set(x, GLOW_HALO_LIFT, z)
+    city.halo.scale.set(
+      width + GLOW_HALO_PADDING,
+      height + GLOW_HALO_PADDING / 2,
+      depth + GLOW_HALO_PADDING,
+    )
+  }
   render()
 }
 
@@ -159,6 +347,8 @@ function fitTo(host: HTMLElement): void {
   const { clientWidth: width, clientHeight: height } = host
   if (width === 0 || height === 0) return
   city.renderer.setSize(width, height)
+  city.labelRenderer.setSize(width, height)
+  outlineMaterial.resolution.set(width, height) // fat lines are sized in screen pixels
   city.perspectiveCamera.aspect = width / height
   city.perspectiveCamera.updateProjectionMatrix()
   Object.assign(city.topDownCamera, topDownFrustum(TOP_DOWN_FRAME, width / height))
@@ -167,12 +357,16 @@ function fitTo(host: HTMLElement): void {
 }
 
 function render(): void {
-  city?.renderer.render(city.scene, city.camera)
+  if (city === null) return
+  fitLabels() // 500 size checks: cheap enough on every camera change
+  city.renderer.render(city.scene, city.camera)
+  city.labelRenderer.render(city.scene, city.camera)
 }
 
 /** WebGL memory isn't garbage collected: free everything the scene holds. */
 function disposeScene(): void {
   if (city === null) return
+  if (hoverFrame !== null) cancelAnimationFrame(hoverFrame)
   city.resizeObserver.disconnect()
   city.controls.dispose()
   buildingsMesh?.dispose()
@@ -180,12 +374,16 @@ function disposeScene(): void {
   buildingMaterial.dispose()
   groundGeometry.dispose()
   groundMaterial.dispose()
+  outlineGeometry.dispose()
+  outlineMaterial.dispose()
+  haloMaterial.dispose()
   city.renderer.dispose()
   city.renderer.domElement.remove()
+  city.labelRenderer.domElement.remove()
   city = null
 }
 </script>
 
 <template>
-  <div ref="container" class="h-full w-full" />
+  <div ref="container" class="relative h-full w-full" />
 </template>

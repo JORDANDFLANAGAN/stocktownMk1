@@ -50,6 +50,15 @@ describe('styleBuildings', () => {
     ])
   })
 
+  it('carries each position’s weight, for the top-down labels', () => {
+    const buildings = styleBuildings(plotsFor(['CCC', 'AAA']), POSITIONS, BETA)
+
+    expect(buildings.map(({ ticker, weight }) => [ticker, weight])).toEqual([
+      ['CCC', 0.2],
+      ['AAA', 0.5],
+    ])
+  })
+
   it('stands a building at the lowest height when its position has no entry for the metric', () => {
     const [alpha, beta, gamma] = POSITIONS as [Position, Position, Position]
     const withoutEntry = [alpha, { ...beta, metrics: {} }, gamma]
