@@ -112,12 +112,12 @@ describe('TickerDrawer', () => {
   })
 
   it('closes back to the city when opened from the city', async () => {
-    const router = await renderAppAt('/test-portfolio/city/ticker/AAA', testPortfolioApi().api)
+    const router = await renderAppAt('/test-portfolio/town/ticker/AAA', testPortfolioApi().api)
 
     await screen.findByRole('dialog', { name: 'AAA' })
     await fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
     await flushPromises()
 
-    expect(router.currentRoute.value.fullPath).toBe('/test-portfolio/city')
+    expect(router.currentRoute.value.fullPath).toBe('/test-portfolio/town')
   })
 })

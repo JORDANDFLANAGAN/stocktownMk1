@@ -39,16 +39,16 @@ describe('App', () => {
       testPortfolioApi().api,
     )
 
-    await fireEvent.click(await screen.findByRole('link', { name: 'City' }))
+    await fireEvent.click(await screen.findByRole('link', { name: 'Town' }))
 
     await vi.waitFor(() =>
-      expect(router.currentRoute.value.fullPath).toBe('/test-portfolio/city?sector=Technology'),
+      expect(router.currentRoute.value.fullPath).toBe('/test-portfolio/town?sector=Technology'),
     )
   })
 
   it('points to the list, keeping the query, when the browser cannot draw the 3D city', async () => {
     // the test environment has no WebGL 2, like a browser without it
-    await renderAppAt('/test-portfolio/city?sector=Technology', testPortfolioApi().api)
+    await renderAppAt('/test-portfolio/town?sector=Technology', testPortfolioApi().api)
 
     const listLink = await screen.findByRole('link', { name: 'The list' })
 

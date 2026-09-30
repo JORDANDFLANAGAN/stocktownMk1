@@ -29,7 +29,7 @@ anything here disagrees), `README.md` (setup, commands), `StockTownOutline.md`
 | WS | Hand-written `LiveBar` type + `parseLiveMessage` (`src/api/live.ts`) |
 | DI | `app.provide(API_KEY, createApi())`; stores call `useApi()`. Tests provide fakes |
 | State | Pinia: `useUniverseStore`, `useFundamentalsStore`. Live feed: `useLiveBar` composable owned by the drawer. Everything shareable (view, ticker, sort, filters, metric picks) lives in the URL |
-| URL | `/:universeId/list[/ticker/:ticker]`, `/:universeId/city[/ticker/:ticker]`; query `?sort=-beta_1y&sector=Technology&sector=Financials&q=aapl&cols=beta_1y&height=one_year_return` |
+| URL | `/:universeId/list[/ticker/:ticker]`, `/:universeId/town[/ticker/:ticker]` (the Town view; the code calls it the city); query `?sort=-beta_1y&sector=Technology&sector=Financials&q=aapl&cols=beta_1y&height=one_year_return` |
 | Loading UX | Layout watches the URL's universe id and calls `store.load`; skeleton + "Building today's snapshot…" while loading; per-store `{loading, error}` thereafter. No `<Suspense>` (experimental) |
 | List | TanStack Table v9 for sorting + rendering; metric columns chosen with a column picker (`?cols=`; default 1-year return + day change, so the table fits the screen — the drawer shows every metric, and serves the city too); filtering is the shared pure `filterPositions`; single-column sort; no pagination; virtual scrolling only if a real portfolio needs it; grouping by asset class via v9 later |
 | List filters | Ticker/name search + sector multi-select (searchable dropdown, right-aligned above Columns); no metric range filters |

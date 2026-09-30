@@ -31,7 +31,7 @@ def create_app(*, warm_on_startup: bool = True) -> FastAPI:
         yield
         await get_live_bar_hub().close()
 
-    app = FastAPI(title="Market City API", lifespan=lifespan)
+    app = FastAPI(title="Stocktown API", lifespan=lifespan)
     app.add_middleware(GZipMiddleware, minimum_size=GZIP_MINIMUM_BYTES)
     app.add_middleware(
         CORSMiddleware, allow_origins=list(get_cors_allowed_origins()), allow_methods=["GET"]

@@ -82,7 +82,7 @@ function metricOrFirst(key: string): MetricInfo {
       <ViewModeToggle v-model="viewMode" class="absolute top-3 right-3" />
     </template>
     <p v-else class="p-6 text-sm text-muted-foreground">
-      The 3D city needs WebGL 2, which this browser doesn't provide.
+      The 3D town needs WebGL 2, which this browser doesn't provide.
       <RouterLink
         :to="{ name: 'list', params: { universeId: route.params.universeId }, query: route.query }"
         class="text-primary underline"

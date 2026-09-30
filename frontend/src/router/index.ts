@@ -23,7 +23,7 @@ const routes: RouteRecordRaw[] = [
         ],
       },
       {
-        path: 'city',
+        path: 'town', // the view is called Town on screen; the code calls it the city
         name: 'city',
         // loaded on first visit, so list-only visits never download Three.js
         component: () => import('@/views/CityView.vue'),

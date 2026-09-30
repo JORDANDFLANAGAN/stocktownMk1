@@ -1,10 +1,10 @@
-# Market City — MVP Plan
+# Stocktown — MVP Plan
 
 Sep 25, 2026 (updated Sep 28, 2026: metric layer built; fundamentals and live prices moved to the click-through popup; list view and Vue frontend added) · @Jordan
 
 ## Overview
 
-Market City renders a stock index or a personal portfolio as a 3D town: each holding is a building, its land is its weight, and the skyline reflects the latest session. Click any building to see its fundamentals and live price.
+Stocktown renders a stock index or a personal portfolio as a 3D town: each holding is a building, its land is its weight, and the skyline reflects the latest session. Click any building to see its fundamentals and live price.
 
 - **Footprint** = share of the index or portfolio, so the whole town adds up to 100%.
 - **Height and colour** = metrics the viewer picks (1-year return, volatility, today's move, and so on).

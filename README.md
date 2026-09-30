@@ -1,4 +1,4 @@
-# Market City
+# Stocktown
 
 A 3D city visualisation of a stock index or portfolio, where each holding is a building. Footprint = index weight, height and colour = viewer-selectable metrics (1-year return, volatility, today's move, etc.). A second, list view shows the same data as a sortable, filterable table.
 

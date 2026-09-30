@@ -38,7 +38,7 @@ METRIC_COLUMN_MIN_WIDTH = 10
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="stocktown", description="Market City data preview")
+    parser = argparse.ArgumentParser(prog="stocktown", description="Stocktown data preview")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("holdings", help="Preview SPY holdings (name, ticker, weight)")

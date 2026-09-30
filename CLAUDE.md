@@ -1,4 +1,4 @@
-# Market City — Session Context
+# Stocktown — Session Context
 
 Short handover doc so a new Claude session can pick up where the previous one left off. See `StockTownOutline.md` for the product vision (its implementation details can be outdated — **if docs disagree: CLAUDE.md > FrontendPlan.md > StockTownOutline.md**) and `README.md` for setup + CLI reference.
 

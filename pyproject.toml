@@ -1,7 +1,7 @@
 [project]
 name = "stocktown"
 version = "0.0.1"
-description = "Market City — 3D city visualisation of stock indices and portfolios"
+description = "Stocktown — 3D city visualisation of stock indices and portfolios"
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.27",

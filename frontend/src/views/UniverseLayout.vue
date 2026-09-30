@@ -18,12 +18,18 @@ watch(universeId, (id) => store.load(id), { immediate: true })
 
 <template>
   <div class="flex h-screen flex-col">
-    <header class="flex items-baseline gap-4 border-b px-6 py-3">
-      <h1 class="text-lg font-semibold">{{ store.universe?.name ?? 'Market City' }}</h1>
-      <span v-if="store.universe?.session_date" class="text-sm text-muted-foreground">
-        Prices as of {{ store.universe.session_date }}
-      </span>
-      <nav class="ml-auto flex gap-4 text-sm">
+    <!-- brand left, the universe on screen centred (the page's heading), views right -->
+    <header class="grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b px-6 py-3">
+      <RouterLink to="/" class="justify-self-start text-2xl font-bold tracking-tight">
+        Stocktown
+      </RouterLink>
+      <div class="flex items-baseline gap-3">
+        <h1 v-if="store.universe" class="text-base font-medium">{{ store.universe.name }}</h1>
+        <span v-if="store.universe?.session_date" class="text-sm text-muted-foreground">
+          Prices as of {{ store.universe.session_date }}
+        </span>
+      </div>
+      <nav class="flex gap-4 justify-self-end text-sm">
         <!-- query carried over: filters and metric picks are shared by both views -->
         <RouterLink
           :to="{ name: 'list', params: { universeId }, query: route.query }"
@@ -35,7 +41,7 @@ watch(universeId, (id) => store.load(id), { immediate: true })
           :to="{ name: 'city', params: { universeId }, query: route.query }"
           active-class="font-semibold text-primary"
         >
-          City
+          Town
         </RouterLink>
       </nav>
     </header>
