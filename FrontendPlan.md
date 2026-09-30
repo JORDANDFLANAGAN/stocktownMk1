@@ -118,7 +118,7 @@ it gets `tabindex="0"` and its visible text as `aria-label`. jsdom has no
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 148 frontend (Vitest) + 78 backend, all mutation-verified.
+Tests so far: 154 frontend (Vitest) + 78 backend, all mutation-verified.
 Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`, `TEST_CATALOGUE`,
 `TEST_INSTRUMENT`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),
@@ -333,7 +333,7 @@ labels in `CityCanvas`):
   `InstancedMesh`; `watch` rebuilds matrices/colours; render on change, not
   every frame; dispose everything on unmount; sector and building labels via
   `CSS2DRenderer`), `BuildingTooltip.vue`, `SectorLegend.vue`.
-- Filters shared with the list: filtered-out buildings are dimmed.
+- Filters shared with the list: filtered-out buildings are dimmed. *(deferred)*
 - Hover: raycast once per animation frame → glow outline + tooltip.
   Click → `city-ticker` route with the query kept; the selected building
   keeps the glow.
@@ -357,7 +357,7 @@ camera can't go below ground; the legend keys the sector colours.
 
 **Checkpoints:** pure layout + scales → canvas skeleton (fixed boxes) →
 height picker + sector colours → hover + tooltip → click → labels + legend →
-filter dimming → browser check.
+browser check.
 
 ---
 
@@ -371,6 +371,11 @@ filter dimming → browser check.
 - Empty states: no rows match the filters; direct link to a ticker that isn't
   in the universe.
 - Remove any leftover scaffold.
+
+**Progress:** list keyboard done: `role="grid"` with roving tabindex (the
+grid pattern makes `aria-selected` valid), ↑/↓/Home/End, focus returns to
+the row on drawer close. The other items are set aside as low value at this
+stage.
 
 **Done when:** keyboard-only use reaches every control in list + drawer;
 toasts fire on 503s.
