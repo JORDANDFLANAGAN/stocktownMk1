@@ -37,6 +37,17 @@ export function topDownPixelsPerUnit(
   return (Math.min(canvasWidth, canvasHeight) / frame) * zoom
 }
 
+// A press that moves further than this (CSS px) before release drags the camera; it isn't a click.
+const CLICK_TOLERANCE = 4
+
+/** Whether a press and release were a click on the spot, rather than the ends of a drag. */
+export function isClick(
+  pressed: { x: number; y: number },
+  released: { x: number; y: number },
+): boolean {
+  return Math.hypot(released.x - pressed.x, released.y - pressed.y) <= CLICK_TOLERANCE
+}
+
 export interface Frustum {
   left: number
   right: number

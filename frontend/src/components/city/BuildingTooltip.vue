@@ -3,6 +3,7 @@ import { computed } from 'vue'
 
 import type { Position } from '@/api/client'
 import type { BuildingHover } from '@/lib/cityView'
+import { formatPercent } from '@/lib/format'
 import { sectorOf } from '@/lib/positions'
 
 const props = defineProps<{
@@ -29,6 +30,7 @@ const placement = computed(() => {
   >
     <p class="font-semibold">{{ position.ticker }}</p>
     <p>{{ position.name }}</p>
+    <p>Weight {{ formatPercent(position.weight, { digits: 2 }) }}</p>
     <p class="text-xs text-muted-foreground">{{ sectorOf(position) }}</p>
   </div>
 </template>

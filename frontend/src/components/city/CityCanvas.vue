@@ -30,6 +30,7 @@ import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 import type { StyledBuilding } from '@/lib/cityAppearance'
 import { CITY_SIZE } from '@/lib/cityLayout'
 import {
+  isClick,
   labelFit,
   topDownFrustum,
   topDownPixelsPerUnit,
@@ -38,8 +39,15 @@ import {
 } from '@/lib/cityView'
 import { formatPercent } from '@/lib/format'
 
-const props = defineProps<{ buildings: StyledBuilding[]; viewMode: CityViewMode }>()
-const emit = defineEmits<{ hover: [hover: BuildingHover | null] }>()
+const props = defineProps<{
+  buildings: StyledBuilding[]
+  viewMode: CityViewMode
+  selectedTicker?: string
+}>()
+const emit = defineEmits<{
+  hover: [hover: BuildingHover | null]
+  select: [ticker: string]
+}>()
 
 const GROUND_COLOUR = '#e4e4e7' // zinc-200
 const BACKGROUND_COLOUR = '#fafafa' // zinc-50
@@ -59,13 +67,19 @@ const TOP_DOWN_HEIGHT = 200
 const TOP_DOWN_FRAME = CITY_SIZE * GROUND_MARGIN // the ground fills the screen's shorter side
 const TOP_DOWN_MAX_ZOOM = 12
 
-// Hover: a bright outline with a soft halo of the same colour around the building.
+// Hovered and selected buildings: a bright outline with a soft halo of the same colour.
 const GLOW_COLOUR = '#2563eb' // blue-600: stands out from every Set3 pastel and the pale ground
 const GLOW_LINE_WIDTH = 3 // px
 const GLOW_HALO_OPACITY = 0.25
 const GLOW_HALO_PADDING = 0.4 // world units the halo reaches past the building
 const GLOW_OUTLINE_INFLATE = 0.02 // lifts the outline off the faces so they don't hide it
 const GLOW_HALO_LIFT = 0.01 // the halo's base sits just above the ground, so they don't flicker
+
+interface Glow {
+  group: Group
+  outline: LineSegments2
+  halo: Mesh
+}
 
 interface CityScene {
   renderer: WebGLRenderer
@@ -75,9 +89,8 @@ interface CityScene {
   topDownCamera: OrthographicCamera
   camera: PerspectiveCamera | OrthographicCamera // whichever the view mode uses
   controls: MapControls
-  glow: Group
-  outline: LineSegments2
-  halo: Mesh
+  hoverGlow: Glow
+  selectedGlow: Glow // the building whose drawer is open
   resizeObserver: ResizeObserver
 }
 
@@ -113,6 +126,7 @@ const raycaster = new Raycaster()
 let hoveredIndex: number | null = null
 let lastPointer: PointerEvent | null = null // null while the pointer is off the city or dragging
 let hoverFrame: number | null = null // at most one pick per animation frame
+let pressedAt: { x: number; y: number } | null = null // where the current press began
 
 onMounted(() => {
   city = createScene(container.value!)
@@ -121,6 +135,7 @@ onMounted(() => {
 })
 watch(() => props.buildings, showBuildings)
 watch(() => props.viewMode, showViewMode)
+watch(() => props.selectedTicker, showSelected)
 onBeforeUnmount(disposeScene)
 
 function createScene(host: HTMLElement): CityScene {
@@ -143,12 +158,9 @@ function createScene(host: HTMLElement): CityScene {
   ground.rotation.x = -Math.PI / 2 // PlaneGeometry stands upright; lay it flat
   scene.add(ground)
 
-  const outline = new LineSegments2(outlineGeometry, outlineMaterial)
-  const halo = new Mesh(boxGeometry, haloMaterial)
-  const glow = new Group()
-  glow.add(outline, halo)
-  glow.visible = false
-  scene.add(glow)
+  const hoverGlow = createGlow()
+  const selectedGlow = createGlow()
+  scene.add(hoverGlow.group, selectedGlow.group)
 
   const perspectiveCamera = new PerspectiveCamera(45, 1, 0.5, 1000)
   const topDownCamera = new OrthographicCamera(-1, 1, 1, -1, 0.5, 1000) // fitted in fitTo
@@ -163,6 +175,8 @@ function createScene(host: HTMLElement): CityScene {
   controls.addEventListener('change', scheduleHover) // a zoom moves the city under a still pointer
   renderer.domElement.addEventListener('pointermove', onPointerMove)
   renderer.domElement.addEventListener('pointerleave', clearHover)
+  renderer.domElement.addEventListener('pointerdown', onPointerDown)
+  renderer.domElement.addEventListener('pointerup', onPointerUp)
 
   const resizeObserver = new ResizeObserver(() => fitTo(host))
   resizeObserver.observe(host)
@@ -175,9 +189,8 @@ function createScene(host: HTMLElement): CityScene {
     topDownCamera,
     camera: perspectiveCamera,
     controls,
-    glow,
-    outline,
-    halo,
+    hoverGlow,
+    selectedGlow,
     resizeObserver,
   }
 }
@@ -222,6 +235,7 @@ function showBuildings(buildings: StyledBuilding[]): void {
   })
   city.scene.add(buildingsMesh)
   highlight(null) // the old index may point at a different building now
+  showSelected() // heights changed: refit its glow
   showLabels(buildings)
   scheduleHover() // heights changed: re-pick under a still pointer
 }
@@ -285,31 +299,37 @@ function scheduleHover(): void {
   }
 }
 
+/** The index of the building under a point on the screen, if any. */
+function buildingAt(clientX: number, clientY: number): number | null {
+  if (city === null || buildingsMesh === null) return null
+  const bounds = city.renderer.domElement.getBoundingClientRect()
+  // the raycaster wants the point in -1..1 across the canvas, y pointing up
+  const pointer = new Vector2(
+    ((clientX - bounds.left) / bounds.width) * 2 - 1,
+    1 - ((clientY - bounds.top) / bounds.height) * 2,
+  )
+  raycaster.setFromCamera(pointer, city.camera)
+  return raycaster.intersectObject(buildingsMesh)[0]?.instanceId ?? null
+}
+
 /** Picks the building under the pointer, highlights it, and reports it for the tooltip. */
 function hoverAtPointer(): void {
   hoverFrame = null
-  if (city === null || buildingsMesh === null || lastPointer === null) return
-  const bounds = city.renderer.domElement.getBoundingClientRect()
-  const x = lastPointer.clientX - bounds.left
-  const y = lastPointer.clientY - bounds.top
-  // the raycaster wants the pointer in -1..1 across the canvas, y pointing up
-  const pointer = new Vector2((x / bounds.width) * 2 - 1, 1 - (y / bounds.height) * 2)
-  raycaster.setFromCamera(pointer, city.camera)
-  const index = raycaster.intersectObject(buildingsMesh)[0]?.instanceId ?? null
-
+  if (city === null || lastPointer === null) return
+  const index = buildingAt(lastPointer.clientX, lastPointer.clientY)
   highlight(index)
-  emit(
-    'hover',
-    index === null
-      ? null
-      : {
-          ticker: props.buildings[index]!.ticker,
-          x,
-          y,
-          canvasWidth: bounds.width,
-          canvasHeight: bounds.height,
-        },
-  )
+  if (index === null) {
+    emit('hover', null)
+    return
+  }
+  const bounds = city.renderer.domElement.getBoundingClientRect()
+  emit('hover', {
+    ticker: props.buildings[index]!.ticker,
+    x: lastPointer.clientX - bounds.left,
+    y: lastPointer.clientY - bounds.top,
+    canvasWidth: bounds.width,
+    canvasHeight: bounds.height,
+  })
 }
 
 function clearHover(): void {
@@ -318,27 +338,63 @@ function clearHover(): void {
   emit('hover', null)
 }
 
-/** Puts the glow around the hovered building, or hides it. */
+function onPointerDown(event: PointerEvent): void {
+  pressedAt = event.button === 0 ? { x: event.clientX, y: event.clientY } : null
+}
+
+/** A click on a building (not the end of a camera drag) selects it. */
+function onPointerUp(event: PointerEvent): void {
+  const released = { x: event.clientX, y: event.clientY }
+  const wasClick = pressedAt !== null && isClick(pressedAt, released)
+  pressedAt = null
+  if (!wasClick) return
+  const index = buildingAt(event.clientX, event.clientY)
+  if (index !== null) emit('select', props.buildings[index]!.ticker)
+}
+
+function createGlow(): Glow {
+  const outline = new LineSegments2(outlineGeometry, outlineMaterial)
+  const halo = new Mesh(boxGeometry, haloMaterial)
+  const group = new Group()
+  group.add(outline, halo)
+  group.visible = false
+  return { group, outline, halo }
+}
+
+/** Wraps the glow around a building, or hides it. */
+function placeGlow(glow: Glow, building: StyledBuilding | undefined): void {
+  glow.group.visible = building !== undefined
+  if (building === undefined) return
+  const { x, z, width, height, depth } = building
+  glow.outline.position.set(x, 0, z)
+  glow.outline.scale.set(
+    width + GLOW_OUTLINE_INFLATE,
+    height + GLOW_OUTLINE_INFLATE,
+    depth + GLOW_OUTLINE_INFLATE,
+  )
+  glow.halo.position.set(x, GLOW_HALO_LIFT, z)
+  glow.halo.scale.set(
+    width + GLOW_HALO_PADDING,
+    height + GLOW_HALO_PADDING / 2,
+    depth + GLOW_HALO_PADDING,
+  )
+}
+
+/** Puts the hover glow around a building, or hides it; the cursor shows it can be clicked. */
 function highlight(index: number | null): void {
   if (city === null || index === hoveredIndex) return
   hoveredIndex = index
   const building = index === null ? undefined : props.buildings[index]
-  city.glow.visible = building !== undefined
-  if (building !== undefined) {
-    const { x, z, width, height, depth } = building
-    city.outline.position.set(x, 0, z)
-    city.outline.scale.set(
-      width + GLOW_OUTLINE_INFLATE,
-      height + GLOW_OUTLINE_INFLATE,
-      depth + GLOW_OUTLINE_INFLATE,
-    )
-    city.halo.position.set(x, GLOW_HALO_LIFT, z)
-    city.halo.scale.set(
-      width + GLOW_HALO_PADDING,
-      height + GLOW_HALO_PADDING / 2,
-      depth + GLOW_HALO_PADDING,
-    )
-  }
+  placeGlow(city.hoverGlow, building)
+  city.renderer.domElement.style.cursor = building === undefined ? '' : 'pointer'
+  render()
+}
+
+/** Keeps a glow on the building whose drawer is open. */
+function showSelected(): void {
+  if (city === null) return
+  const selected = props.buildings.find((building) => building.ticker === props.selectedTicker)
+  placeGlow(city.selectedGlow, selected)
   render()
 }
 

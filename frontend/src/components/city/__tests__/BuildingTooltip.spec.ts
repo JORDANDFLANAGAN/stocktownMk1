@@ -18,11 +18,12 @@ function renderTooltip(position: Position, hover: BuildingHover) {
 }
 
 describe('BuildingTooltip', () => {
-  it('names the building: ticker, company and sector', () => {
+  it('names the building: ticker, company, weight and sector', () => {
     const tooltip = renderTooltip(ALPHA, hoverAt(100, 100))
 
     expect(tooltip.textContent).toContain('AAA')
     expect(tooltip.textContent).toContain('Alpha Corp')
+    expect(tooltip.textContent).toContain('Weight 50.00%')
     expect(tooltip.textContent).toContain('Technology')
   })
 

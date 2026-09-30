@@ -118,7 +118,7 @@ it gets `tabindex="0"` and its visible text as `aria-label`. jsdom has no
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 141 frontend (Vitest) + 78 backend, all mutation-verified.
+Tests so far: 144 frontend (Vitest) + 78 backend, all mutation-verified.
 Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`, `TEST_CATALOGUE`,
 `TEST_INSTRUMENT`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),
@@ -280,6 +280,19 @@ glow in `CityCanvas`):
   tiny plots; refitted on every camera change (`labelFit`,
   `topDownPixelsPerUnit`, pure). None in 3D. Labels let the pointer through.
 
+Click → select done:
+
+- A press released within 4px (straight-line; `isClick`, pure) is a click,
+  anything further a camera drag, so orbiting never opens a drawer. A click
+  on a building → `city-ticker` with the query kept (the same non-modal
+  drawer as a list row, switching in place); empty ground does nothing.
+- The selected building has its own glow (same style), so hover and
+  selection can show at once. It follows `route.params.ticker`, so closing
+  the drawer clears it and a direct link opens with it glowing. Pointer
+  cursor over buildings.
+- The tooltip also shows the weight, in both views.
+- Known: the drawer covers the right of the canvas, including the view toggle.
+
 **Deliverables:**
 
 - Router: `CityView` loaded with `() => import(...)` so Three.js is only
@@ -310,8 +323,8 @@ fallback; null → height 1), `cityAppearance.spec.ts` (height by metric,
 colour by sector, matched by ticker; 11 distinct non-grey sector colours;
 Unclassified always grey; palette repeats), `cityView.spec.ts` (the
 top-down frustum fits wide, tall and square screens; label fit thresholds;
-pixels per unit), `BuildingTooltip.spec.ts` (content; flips per axis). No
-component
+pixels per unit; click vs drag), `BuildingTooltip.spec.ts` (content; flips
+per axis). No component
 test for `CityCanvas` (WebGL in jsdom isn't worth it) — browser check instead.
 
 **Done when:** `/spy/city` renders the city with visible streets; pickers

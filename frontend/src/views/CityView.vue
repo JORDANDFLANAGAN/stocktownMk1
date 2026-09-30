@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 
 import type { MetricInfo } from '@/api/client'
 import BuildingTooltip from '@/components/city/BuildingTooltip.vue'
@@ -17,11 +17,15 @@ import { useUniverseStore } from '@/stores/universe'
 const DEFAULT_HEIGHT_METRIC = 'one_year_return'
 
 const route = useRoute()
+const router = useRouter()
 const store = useUniverseStore()
 
 const height = useQueryHeight(DEFAULT_HEIGHT_METRIC)
 const heightMetric = computed(() => metricOrFirst(height.value))
 const viewMode = ref<CityViewMode>('3d')
+const selectedTicker = computed(() =>
+  typeof route.params.ticker === 'string' ? route.params.ticker : undefined,
+)
 const hovered = ref<BuildingHover | null>(null)
 const hoveredPosition = computed(() =>
   store.positions.find((position) => position.ticker === hovered.value?.ticker),
@@ -36,6 +40,11 @@ const buildings = computed(() =>
 // the list, which shows the same data.
 const canDraw3d = typeof WebGL2RenderingContext !== 'undefined'
 
+function openDrawer(ticker: string): void {
+  // query kept so the height pick and filters survive opening and closing the drawer
+  router.push({ name: 'city-ticker', params: { ...route.params, ticker }, query: route.query })
+}
+
 /** A key the catalogue doesn't know (an old link, say) shows its first metric instead. */
 function metricOrFirst(key: string): MetricInfo {
   // the catalogue is loaded with the universe, so it's never empty once this view shows
@@ -49,7 +58,9 @@ function metricOrFirst(key: string): MetricInfo {
       <CityCanvas
         :buildings="buildings"
         :view-mode="viewMode"
+        :selected-ticker="selectedTicker"
         @hover="(hover) => (hovered = hover)"
+        @select="openDrawer"
       />
       <BuildingTooltip
         v-if="hovered && hoveredPosition"

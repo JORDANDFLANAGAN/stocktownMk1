@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { labelFit, topDownFrustum, topDownPixelsPerUnit } from '../cityView'
+import { isClick, labelFit, topDownFrustum, topDownPixelsPerUnit } from '../cityView'
 
 describe('topDownFrustum', () => {
   it('fits the city to the height of a wide screen, with room either side', () => {
@@ -40,5 +40,22 @@ describe('topDownPixelsPerUnit', () => {
 
   it('grows with the zoom', () => {
     expect(topDownPixelsPerUnit(120, 1200, 600, 3)).toBe(15)
+  })
+})
+
+describe('isClick', () => {
+  const PRESSED = { x: 100, y: 100 }
+
+  it('counts a release on the spot, or within 4px, as a click', () => {
+    expect(isClick(PRESSED, { x: 100, y: 100 })).toBe(true)
+    expect(isClick(PRESSED, { x: 104, y: 100 })).toBe(true)
+  })
+
+  it('counts a release further away as the end of a camera drag', () => {
+    expect(isClick(PRESSED, { x: 105, y: 100 })).toBe(false)
+  })
+
+  it('measures the straight-line distance, so a small diagonal drag is still a drag', () => {
+    expect(isClick(PRESSED, { x: 103, y: 103 })).toBe(false) // 4.2px
   })
 })
