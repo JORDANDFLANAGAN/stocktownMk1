@@ -2,15 +2,27 @@ import { describe, expect, it } from 'vitest'
 
 import type { Position } from '@/api/client'
 import { TEST_CATALOGUE, TEST_PORTFOLIO } from '@/__tests__/fixtures'
-import { sectorColours, styleBuildings, UNCLASSIFIED_COLOUR } from '../cityAppearance'
+import { sectorColours, sectorKey, styleBuildings, UNCLASSIFIED_COLOUR } from '../cityAppearance'
 import type { BuildingPlot } from '../cityLayout'
 import { MAX_HEIGHT, MIN_HEIGHT } from '../cityScales'
 
 const BETA = TEST_CATALOGUE[1]! // AAA 1.3 (highest), BBB none, CCC 0.1 (lowest)
 const POSITIONS = TEST_PORTFOLIO.positions // AAA Technology, BBB no sector, CCC Fixed Income
 
-const ELEVEN_SECTORS = Array.from({ length: 11 }, (_, index) => `Sector ${index + 1}`)
-const SET3_GREY = '#d9d9d9'
+const GICS_SECTORS = [
+  'Communication Services',
+  'Consumer Discretionary',
+  'Consumer Staples',
+  'Energy',
+  'Financials',
+  'Health Care',
+  'Industrials',
+  'Information Technology',
+  'Materials',
+  'Real Estate',
+  'Utilities',
+]
+const OTHER_SECTORS = Array.from({ length: 12 }, (_, index) => `Sector ${index + 1}`)
 
 // The layout reads each plot's sector from its position; unclassified becomes 'Unclassified'.
 const PLOTS: Record<string, BuildingPlot> = {
@@ -70,26 +82,55 @@ describe('styleBuildings', () => {
 })
 
 describe('sectorColours', () => {
-  it('gives each of the S&P’s eleven sectors its own colour, none of them grey', () => {
-    const colours = [...sectorColours(ELEVEN_SECTORS)]
+  it('gives each of the eleven GICS sectors its own colour, none of them grey', () => {
+    const colours = [...sectorColours(GICS_SECTORS)]
       .filter(([sector]) => sector !== 'Unclassified')
       .map(([, colour]) => colour)
 
     expect(new Set(colours).size).toBe(11)
-    expect(colours).not.toContain(SET3_GREY)
     expect(colours).not.toContain(UNCLASSIFIED_COLOUR)
+  })
+
+  it('keeps a GICS sector’s colour whatever other sectors are on screen', () => {
+    const alone = sectorColours(['Energy']).get('Energy')
+
+    expect(sectorColours(GICS_SECTORS).get('Energy')).toBe(alone)
+    expect(sectorColours(['Utilities', 'Energy']).get('Energy')).toBe(alone)
   })
 
   it('keeps Unclassified grey wherever it comes in the list', () => {
     const colours = sectorColours(['Unclassified', 'Energy', 'Utilities'])
 
     expect(colours.get('Unclassified')).toBe(UNCLASSIFIED_COLOUR)
-    expect(colours.get('Energy')).toBe(sectorColours(['Energy']).get('Energy'))
   })
 
-  it('reuses the palette from the start after eleven sectors', () => {
-    const colours = sectorColours([...ELEVEN_SECTORS, 'Sector 12'])
+  it('gives other sector names the palette in order, repeating after eleven', () => {
+    const colours = sectorColours(OTHER_SECTORS)
+    const first11 = OTHER_SECTORS.slice(0, 11).map((sector) => colours.get(sector))
 
+    expect(new Set(first11).size).toBe(11)
     expect(colours.get('Sector 12')).toBe(colours.get('Sector 1'))
+  })
+})
+
+describe('sectorKey', () => {
+  it('lists the sectors on screen in legend order, coloured as their buildings are', () => {
+    const buildings = styleBuildings(plotsFor(['AAA', 'BBB', 'CCC']), POSITIONS, BETA)
+    const buildingColour = (sector: string) => buildings.find((b) => b.sector === sector)?.colour
+
+    expect(sectorKey(POSITIONS)).toEqual([
+      { sector: 'Fixed Income', colour: buildingColour('Fixed Income') },
+      { sector: 'Technology', colour: buildingColour('Technology') },
+      { sector: 'Unclassified', colour: UNCLASSIFIED_COLOUR },
+    ])
+  })
+
+  it('leaves Unclassified out when every position has a sector', () => {
+    const classified = POSITIONS.filter((position) => position.sector !== null)
+
+    expect(sectorKey(classified).map(({ sector }) => sector)).toEqual([
+      'Fixed Income',
+      'Technology',
+    ])
   })
 })

@@ -6,9 +6,10 @@ import type { MetricInfo } from '@/api/client'
 import BuildingTooltip from '@/components/city/BuildingTooltip.vue'
 import CityCanvas from '@/components/city/CityCanvas.vue'
 import MetricPicker from '@/components/city/MetricPicker.vue'
+import SectorLegend from '@/components/city/SectorLegend.vue'
 import ViewModeToggle from '@/components/city/ViewModeToggle.vue'
 import { useQueryHeight } from '@/composables/useQueryState'
-import { styleBuildings } from '@/lib/cityAppearance'
+import { sectorKey, styleBuildings } from '@/lib/cityAppearance'
 import { layoutCity } from '@/lib/cityLayout'
 import type { BuildingHover, CityViewMode } from '@/lib/cityView'
 import { useUniverseStore } from '@/stores/universe'
@@ -35,6 +36,7 @@ const layout = computed(() => layoutCity(store.positions))
 const buildings = computed(() =>
   styleBuildings(layout.value.buildings, store.positions, heightMetric.value),
 )
+const sectors = computed(() => sectorKey(store.positions))
 
 // Three.js draws with WebGL 2. Browsers without it (and the test environment) get a pointer to
 // the list, which shows the same data.
@@ -57,6 +59,7 @@ function metricOrFirst(key: string): MetricInfo {
     <template v-if="canDraw3d">
       <CityCanvas
         :buildings="buildings"
+        :districts="layout.districts"
         :view-mode="viewMode"
         :selected-ticker="selectedTicker"
         @hover="(hover) => (hovered = hover)"
@@ -75,6 +78,7 @@ function metricOrFirst(key: string): MetricInfo {
           @update:model-value="(key) => (height = key)"
         />
       </div>
+      <SectorLegend :sectors="sectors" class="absolute bottom-3 left-3" />
       <ViewModeToggle v-model="viewMode" class="absolute top-3 right-3" />
     </template>
     <p v-else class="p-6 text-sm text-muted-foreground">

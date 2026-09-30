@@ -28,7 +28,8 @@ import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer
 import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 
 import type { StyledBuilding } from '@/lib/cityAppearance'
-import { CITY_SIZE } from '@/lib/cityLayout'
+import { CITY_SIZE, type DistrictPlot } from '@/lib/cityLayout'
+import { MAX_HEIGHT } from '@/lib/cityScales'
 import {
   isClick,
   labelFit,
@@ -41,6 +42,7 @@ import { formatPercent } from '@/lib/format'
 
 const props = defineProps<{
   buildings: StyledBuilding[]
+  districts: DistrictPlot[]
   viewMode: CityViewMode
   selectedTicker?: string
 }>()
@@ -74,6 +76,10 @@ const GLOW_HALO_OPACITY = 0.25
 const GLOW_HALO_PADDING = 0.4 // world units the halo reaches past the building
 const GLOW_OUTLINE_INFLATE = 0.02 // lifts the outline off the faces so they don't hide it
 const GLOW_HALO_LIFT = 0.01 // the halo's base sits just above the ground, so they don't flicker
+
+// Sector names float just above the tallest possible roof: CSS2DRenderer stacks labels by
+// distance, so this keeps them above the building labels in top-down.
+const DISTRICT_LABEL_HEIGHT = MAX_HEIGHT + 1
 
 interface Glow {
   group: Group
@@ -122,6 +128,7 @@ const haloMaterial = new MeshBasicMaterial({
 let city: CityScene | null = null
 let buildingsMesh: InstancedMesh | null = null
 let labels: BuildingLabel[] = []
+let districtLabels: CSS2DObject[] = []
 const raycaster = new Raycaster()
 let hoveredIndex: number | null = null
 let lastPointer: PointerEvent | null = null // null while the pointer is off the city or dragging
@@ -132,10 +139,12 @@ onMounted(() => {
   city = createScene(container.value!)
   showViewMode(props.viewMode)
   showBuildings(props.buildings)
+  showDistrictLabels(props.districts)
 })
 watch(() => props.buildings, showBuildings)
 watch(() => props.viewMode, showViewMode)
 watch(() => props.selectedTicker, showSelected)
+watch(() => props.districts, showDistrictLabels)
 onBeforeUnmount(disposeScene)
 
 function createScene(host: HTMLElement): CityScene {
@@ -262,6 +271,32 @@ function createLabel(building: StyledBuilding): BuildingLabel {
   const object = new CSS2DObject(element)
   object.position.set(building.x, building.height, building.z)
   return { object, weightLine, building }
+}
+
+/** Each sector's name at its district's north-west corner, like a treemap's group header. */
+function showDistrictLabels(districts: DistrictPlot[]): void {
+  if (city === null) return
+  for (const label of districtLabels) label.removeFromParent() // also removes its element
+  districtLabels = districts.map(createDistrictLabel)
+  for (const label of districtLabels) city.scene.add(label)
+  render()
+}
+
+function createDistrictLabel(district: DistrictPlot): CSS2DObject {
+  const element = document.createElement('div')
+  element.className =
+    'whitespace-nowrap rounded-sm bg-background/80 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-700'
+  element.textContent = district.sector
+
+  const label = new CSS2DObject(element)
+  label.center.set(0, 0) // the element's top-left corner sits on the point
+  // north is -z and west is -x, so this is the district's top-left corner on screen
+  label.position.set(
+    district.x - district.width / 2,
+    DISTRICT_LABEL_HEIGHT,
+    district.z - district.depth / 2,
+  )
+  return label
 }
 
 /** Top-down only: each label shows as much as fits its plot at the current zoom. */

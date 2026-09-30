@@ -1,5 +1,3 @@
-import { schemeSet3 } from 'd3-scale-chromatic'
-
 import type { MetricInfo, Position } from '@/api/client'
 import type { BuildingPlot } from './cityLayout'
 import { heightScale } from './cityScales'
@@ -8,9 +6,27 @@ import { sectorsIn, UNCLASSIFIED } from './positions'
 /** Neutral grey (zinc-400) for positions with no sector. */
 export const UNCLASSIFIED_COLOUR = '#a1a1aa'
 
-// ColorBrewer Set3 without its grey, which would read as Unclassified: 11 colours, one per
-// S&P sector.
-const SECTOR_PALETTE = schemeSet3.filter((colour) => colour !== '#d9d9d9')
+// One colour per GICS sector (the names SSGA's sector funds use). Eight are a validated
+// colour-blind-safe categorical set; cyan, brown and plum extend it to eleven. The pairing was
+// checked against the S&P city's layout: every two neighbouring districts stay distinct under
+// simulated red-green colour blindness (OKLab ΔE ≥ 11.8, target 8) and normal vision (≥ 18.4,
+// floor 15). No eleven hues can all be told apart everywhere, so district labels carry identity
+// too. Re-check the pairing if the sectors' weight order changes noticeably.
+const GICS_SECTOR_COLOURS = new Map([
+  ['Information Technology', '#2a78d6'], // blue
+  ['Financials', '#e34948'], // red
+  ['Communication Services', '#4a3aa7'], // violet
+  ['Health Care', '#008300'], // green
+  ['Consumer Discretionary', '#e87ba4'], // pink
+  ['Industrials', '#eda100'], // yellow
+  ['Consumer Staples', '#a0652a'], // brown
+  ['Energy', '#17becf'], // cyan
+  ['Utilities', '#eb6834'], // orange
+  ['Real Estate', '#b0428f'], // plum
+  ['Materials', '#1baf7a'], // aqua
+])
+// Sectors outside GICS (a portfolio's own names) take the same colours in order, repeating past 11.
+const OTHER_SECTOR_PALETTE = [...GICS_SECTOR_COLOURS.values()]
 
 export interface StyledBuilding extends BuildingPlot {
   height: number
@@ -46,14 +62,33 @@ export function styleBuildings(
 }
 
 /**
- * A colour per sector, following the order given, so the same universe always gets the same
- * colours. More sectors than colours reuse the palette from the start; Unclassified is grey.
+ * A colour per sector. GICS sectors always get their own colour, whatever else is on screen;
+ * other names take the palette in the order given; Unclassified is grey.
  */
 export function sectorColours(sectors: string[]): Map<string, string> {
-  const classified = sectors.filter((sector) => sector !== UNCLASSIFIED)
-  const colours = new Map(
-    classified.map((sector, index) => [sector, SECTOR_PALETTE[index % SECTOR_PALETTE.length]!]),
+  const colours = new Map<string, string>()
+  const others = sectors.filter(
+    (sector) => sector !== UNCLASSIFIED && !GICS_SECTOR_COLOURS.has(sector),
   )
+  for (const sector of sectors) {
+    const gics = GICS_SECTOR_COLOURS.get(sector)
+    if (gics !== undefined) colours.set(sector, gics)
+  }
+  others.forEach((sector, index) => {
+    colours.set(sector, OTHER_SECTOR_PALETTE[index % OTHER_SECTOR_PALETTE.length]!)
+  })
   colours.set(UNCLASSIFIED, UNCLASSIFIED_COLOUR)
   return colours
+}
+
+export interface SectorColour {
+  sector: string
+  colour: string
+}
+
+/** The sectors on screen with their colours, in legend order (alphabetical, Unclassified last). */
+export function sectorKey(positions: Position[]): SectorColour[] {
+  const sectors = sectorsIn(positions)
+  const colours = sectorColours(sectors)
+  return sectors.map((sector) => ({ sector, colour: colours.get(sector)! }))
 }

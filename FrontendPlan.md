@@ -36,7 +36,7 @@ anything here disagrees), `README.md` (setup, commands), `StockTownOutline.md`
 | Styling | Tailwind v4 + shadcn-vue (`vega`, zinc neutral, teal primary, self-hosted Inter). Plain Tailwind markup until a shadcn component earns its place (the drawer's Sheet, the column picker's DropdownMenu). `shadcn-vue add` inserts a Google Fonts `@import` into `main.css` each time — delete it (Inter is self-hosted) |
 | Formatting | `src/lib/format.ts` (`Intl.NumberFormat('en-US')`, typographic minus), driven by `metric.unit` |
 | Popup | Right-side drawer, nested child route of each view; sections: header / city metrics / fundamentals / live |
-| City | Treemap of treemaps (sector districts → holdings, padding = streets); one `InstancedMesh` of unit boxes; `MapControls`, polar clamp `[15°, 75°]`; colour = sector (ColorBrewer Set3 without its grey; grey = Unclassified); hover/select glow outline; top-down labels (ticker + weight). Route lazy-loaded so list-only visits never download Three.js |
+| City | Treemap of treemaps (sector districts → holdings, padding = streets); one `InstancedMesh` of unit boxes; `MapControls`, polar clamp `[15°, 75°]`; colour = sector (fixed per GICS sector: a validated 8-hue colour-blind-safe set + cyan, brown, plum; grey = Unclassified); hover/select glow outline; top-down labels (ticker + weight). Route lazy-loaded so list-only visits never download Three.js |
 | Testing | Vitest + Testing Library; behavioural names; fakes injected, no `vi.mock`; every test mutation-verified; non-SPY fixture (`TEST_PORTFOLIO`) |
 | CI | One workflow: backend (uv, pytest) + frontend (schema drift, lint, Prettier, tests, build) |
 | Prod serving | Deferred until deployment; likely FastAPI serving `frontend/dist` same-origin with an `index.html` fallback for deep links |
@@ -118,7 +118,7 @@ it gets `tabindex="0"` and its visible text as `aria-label`. jsdom has no
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 144 frontend (Vitest) + 78 backend, all mutation-verified.
+Tests so far: 148 frontend (Vitest) + 78 backend, all mutation-verified.
 Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`, `TEST_CATALOGUE`,
 `TEST_INSTRUMENT`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),
@@ -240,12 +240,21 @@ Height picker, sector colours and top-down view done
 
 - Colour = sector, not a metric. Metric colouring (RdBu for signed, plasma
   for unsigned) was built, then dropped entirely as a product call.
-  ColorBrewer Set3 without its grey gives exactly 11 colours for the S&P's
-  11 sectors; grey (zinc-400) = Unclassified. Colours are assigned in
-  `sectorsIn` order (alphabetical), so the same universe always gets the
-  same colours with no hard-coded sector names; the palette repeats past
-  11. The treemap's districts group each sector too, so colour reinforces
-  them.
+  Colours are fixed per GICS sector name (a sector keeps its colour
+  whatever else is on screen); other names take the same palette in order,
+  repeating past 11; grey (zinc-400) = Unclassified. Replaced ColorBrewer
+  Set3, which failed every check of the data-viz palette validator (too
+  light, near-grey, some pairs indistinguishable even with full colour
+  vision). No 11 hues can all be told apart for colour-blind viewers (at
+  most 3 pass all-pairs), so the set is the validated 8-hue categorical
+  palette + cyan, brown and plum, paired with sectors so that every
+  neighbouring district in today's S&P city clears the colour-blind target
+  (worst OKLab ΔE 11.8, target 8) and normal vision (18.4, floor 15). Under
+  ±10% weight drift some new neighbours drop to about 3, so identity also
+  comes from district labels, streets, the tooltip and the legend text.
+  Re-check the pairing if the sectors' weight order changes noticeably.
+  Yellow, pink, cyan and aqua sit below 3:1 on the pale ground; the labels
+  are the relief.
 - One `MetricPicker` (DropdownMenu radio group, same look as Columns; no
   shadcn Select) for Height, overlaid top-left on the canvas. Default
   1-year return (the list's first default column). `?height=` via
@@ -293,6 +302,19 @@ Click → select done:
 - The tooltip also shows the weight, in both views.
 - Known: the drawer covers the right of the canvas, including the view toggle.
 
+Sector labels + legend done (`components/city/SectorLegend.vue`; district
+labels in `CityCanvas`):
+
+- Each sector's name sits at its district's north-west corner (top-left on
+  screen in both starting views), like a treemap's group header. It's a
+  CSS2D pill placed just above the tallest possible roof, so it stacks above
+  the building labels in top-down. Fixed 11px and not truncated, so a long
+  name may overhang a small district (tune if it bothers).
+- `SectorLegend` (bottom-left; the drawer covers the right), built from the
+  pure `sectorKey`: the sectors on screen, alphabetical, Unclassified last
+  and only when present, coloured as their buildings. Clicking entries to
+  filter waits for filter dimming.
+
 **Deliverables:**
 
 - Router: `CityView` loaded with `() => import(...)` so Three.js is only
@@ -309,8 +331,8 @@ Click → select done:
 - `components/city/MetricPicker.vue` (Height), `CityCanvas.vue` (one component owning the imperative Three.js
   scene: renderer, camera, `MapControls`, lights, ground, one
   `InstancedMesh`; `watch` rebuilds matrices/colours; render on change, not
-  every frame; dispose everything on unmount), `SectorLabels.vue`
-  (`CSS2DRenderer`), `BuildingTooltip.vue`, `Legend.vue` (sector key).
+  every frame; dispose everything on unmount; sector and building labels via
+  `CSS2DRenderer`), `BuildingTooltip.vue`, `SectorLegend.vue`.
 - Filters shared with the list: filtered-out buildings are dimmed.
 - Hover: raycast once per animation frame → glow outline + tooltip.
   Click → `city-ticker` route with the query kept; the selected building
@@ -321,7 +343,9 @@ per sector containing its buildings; street/alley gaps between every pair),
 `cityScales.spec.ts` (domain edges → `[1, 20]`; ranks and ties; log
 fallback; null → height 1), `cityAppearance.spec.ts` (height by metric,
 colour by sector, matched by ticker; 11 distinct non-grey sector colours;
-Unclassified always grey; palette repeats), `cityView.spec.ts` (the
+Unclassified always grey; a GICS sector keeps its colour whatever else is
+on screen; other names repeat the palette; the legend's key matches the
+buildings), `SectorLegend.spec.ts`, `cityView.spec.ts` (the
 top-down frustum fits wide, tall and square screens; label fit thresholds;
 pixels per unit; click vs drag), `BuildingTooltip.spec.ts` (content; flips
 per axis). No component
@@ -333,7 +357,7 @@ camera can't go below ground; the legend keys the sector colours.
 
 **Checkpoints:** pure layout + scales → canvas skeleton (fixed boxes) →
 height picker + sector colours → hover + tooltip → click → labels + legend →
-browser check.
+filter dimming → browser check.
 
 ---
 
