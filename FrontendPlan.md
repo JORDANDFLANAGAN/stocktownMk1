@@ -32,7 +32,7 @@ anything here disagrees), `README.md` (setup, commands), `StockTownOutline.md`
 | URL | `/:universeId/list[/ticker/:ticker]`, `/:universeId/city[/ticker/:ticker]`; query `?sort=-beta_1y&sector=Technology&sector=Financials&q=aapl&cols=beta_1y&height=one_year_return&color=day_change` |
 | Loading UX | Layout watches the URL's universe id and calls `store.load`; skeleton + "Building today's snapshot…" while loading; per-store `{loading, error}` thereafter. No `<Suspense>` (experimental) |
 | List | TanStack Table v9 for sorting + rendering; metric columns chosen with a column picker (`?cols=`; default 1-year return + day change, so the table fits the screen — the drawer shows every metric, and serves the city too); filtering is the shared pure `filterPositions`; single-column sort; no pagination; virtual scrolling only if a real portfolio needs it; grouping by asset class via v9 later |
-| List filters | Sector chips + ticker/name search; no metric range filters |
+| List filters | Ticker/name search + sector multi-select (searchable dropdown, right-aligned above Columns); no metric range filters |
 | Styling | Tailwind v4 + shadcn-vue (`vega`, zinc neutral, teal primary, self-hosted Inter). Plain Tailwind markup until a shadcn component earns its place (the drawer's Sheet, the column picker's DropdownMenu). `shadcn-vue add` inserts a Google Fonts `@import` into `main.css` each time — delete it (Inter is self-hosted) |
 | Formatting | `src/lib/format.ts` (`Intl.NumberFormat('en-US')`, typographic minus), driven by `metric.unit` |
 | Popup | Right-side drawer, nested child route of each view; sections: header / city metrics / fundamentals / live |
@@ -106,12 +106,19 @@ events out; one column per catalogue metric; missing values sort last);
 the URL updates). Later: `ColumnPicker` + `useQueryColumns` (absent `cols`
 = defaults; empty `cols=` = every metric hidden); hidden columns still sort;
 long names truncated with the full name on hover.
+Later: the sector chips became `SectorPicker`, built directly on reka-ui's
+Combobox (`multiple`, built-in case-insensitive filtering). We didn't use
+the shadcn-vue combobox, which generates about 20 files for one picker.
+reka's `ComboboxTrigger` is built to sit beside an input, so by default it's
+unfocusable and labelled "Show popup". Our trigger is the only control, so
+it gets `tabindex="0"` and its visible text as `aria-label`. jsdom has no
+`scrollIntoView`, which reka calls on open, so `src/__tests__/setup.ts` stubs it.
 
 **Backend follow-ups.** `last_close` on positions; `unit`/`scale`/`refresh`
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 114 frontend (Vitest) + 78 backend, all mutation-verified.
+Tests so far: 120 frontend (Vitest) + 78 backend, all mutation-verified.
 Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`, `TEST_CATALOGUE`,
 `TEST_INSTRUMENT`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),

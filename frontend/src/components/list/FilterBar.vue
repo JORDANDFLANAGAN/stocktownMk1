@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
+import SectorPicker from '@/components/list/SectorPicker.vue'
+
 const props = defineProps<{
   allSectors: string[]
   sectors: string[]
@@ -16,20 +18,13 @@ const emit = defineEmits<{
 // to it would drop keystrokes typed in between.
 const searchText = ref(props.search)
 
-function toggleSector(sector: string): void {
-  const chosen = props.sectors.includes(sector)
-    ? props.sectors.filter((existing) => existing !== sector)
-    : [...props.sectors, sector]
-  emit('update:sectors', chosen)
-}
-
 function onSearchInput(): void {
   emit('update:search', searchText.value)
 }
 </script>
 
 <template>
-  <div class="flex flex-wrap items-center gap-2">
+  <div class="flex items-center justify-between gap-2">
     <input
       v-model="searchText"
       type="search"
@@ -38,15 +33,10 @@ function onSearchInput(): void {
       class="rounded-md border px-3 py-1.5 text-sm"
       @input="onSearchInput"
     />
-    <button
-      v-for="sector in allSectors"
-      :key="sector"
-      type="button"
-      :aria-pressed="sectors.includes(sector)"
-      class="rounded-full border px-3 py-1 text-xs aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground"
-      @click="toggleSector(sector)"
-    >
-      {{ sector }}
-    </button>
+    <SectorPicker
+      :all-sectors="allSectors"
+      :sectors="sectors"
+      @update:sectors="(chosen) => emit('update:sectors', chosen)"
+    />
   </div>
 </template>
