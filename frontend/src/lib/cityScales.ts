@@ -1,19 +1,9 @@
 import { scaleLinear, scaleLog } from 'd3-scale'
-import { interpolatePlasma, interpolateRdBu } from 'd3-scale-chromatic'
 
 import type { MetricInfo } from '@/api/client'
 
 export const MIN_HEIGHT = 1
 export const MAX_HEIGHT = 20
-/** Neutral grey (zinc-400): the position has no value for this metric. */
-export const MISSING_COLOUR = '#a1a1aa'
-
-// RdBu's darkest ends are hard to tell apart on screen, so gains and losses use its inner 80%.
-const DIVERGING_START = 0.1
-const DIVERGING_END = 0.9
-// Signed colours saturate at this share of the largest moves, so one outlier doesn't wash the
-// rest of the city out to white.
-const SIGNED_SATURATION_PERCENTILE = 0.95
 
 type MetricValue = number | null
 
@@ -28,22 +18,6 @@ export function heightScale(
   const position = relativePosition(metric, present(values))
   return (value) =>
     value === null ? MIN_HEIGHT : MIN_HEIGHT + position(value) * (MAX_HEIGHT - MIN_HEIGHT)
-}
-
-/**
- * Building colour for each value of a metric. Signed metrics (gains vs losses) diverge from white
- * at 0 (red losses, blue gains); the rest run along plasma, by the metric's scale. Missing: grey.
- */
-export function colourScale(
-  metric: Pick<MetricInfo, 'scale' | 'signed'>,
-  values: MetricValue[],
-): (value: MetricValue) => string {
-  if (metric.signed) {
-    const saturatesAt = saturationBound(present(values))
-    return (value) => (value === null ? MISSING_COLOUR : divergingColour(value, saturatesAt))
-  }
-  const position = relativePosition(metric, present(values))
-  return (value) => (value === null ? MISSING_COLOUR : interpolatePlasma(position(value)))
 }
 
 function present(values: MetricValue[]): number[] {
@@ -95,19 +69,4 @@ function percentileRank(values: number[], value: number): number {
   const equal = values.filter((other) => other === value).length
   const rank = below + Math.max(equal - 1, 0) / 2
   return rank / (values.length - 1)
-}
-
-/** The size of move at which signed colours reach full strength. */
-function saturationBound(values: number[]): number {
-  const sizes = values.map(Math.abs).sort((a, b) => a - b)
-  if (sizes.length === 0) {
-    return 0
-  }
-  return sizes[Math.floor(SIGNED_SATURATION_PERCENTILE * (sizes.length - 1))]!
-}
-
-function divergingColour(value: number, saturatesAt: number): string {
-  const strength = saturatesAt === 0 ? 0 : Math.max(-1, Math.min(1, value / saturatesAt))
-  const along = (strength + 1) / 2 // -1 → 0 (loss), 0 → 0.5 (white), 1 → 1 (gain)
-  return interpolateRdBu(DIVERGING_START + along * (DIVERGING_END - DIVERGING_START))
 }

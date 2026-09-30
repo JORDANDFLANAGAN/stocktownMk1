@@ -1,7 +1,6 @@
-import { interpolatePlasma, interpolateRdBu } from 'd3-scale-chromatic'
 import { describe, expect, it } from 'vitest'
 
-import { colourScale, heightScale, MAX_HEIGHT, MIN_HEIGHT, MISSING_COLOUR } from '../cityScales'
+import { heightScale, MAX_HEIGHT, MIN_HEIGHT } from '../cityScales'
 
 const MID_HEIGHT = (MIN_HEIGHT + MAX_HEIGHT) / 2 // 10.5
 
@@ -47,40 +46,5 @@ describe('heightScale', () => {
 
   it('gives a missing value the lowest height', () => {
     expect(heightScale(LINEAR, [10, null, 30])(null)).toBe(MIN_HEIGHT)
-  })
-})
-
-describe('colourScale', () => {
-  it('runs an unsigned metric along plasma, lowest to highest', () => {
-    const colour = colourScale({ scale: 'linear', signed: false }, [10, 20, 30])
-
-    expect([colour(10), colour(30)]).toEqual([interpolatePlasma(0), interpolatePlasma(1)])
-  })
-
-  it('centres a signed metric on white at zero: losses red, gains blue', () => {
-    const colour = colourScale({ scale: 'percentile', signed: true }, [-0.1, 0, 0.1])
-
-    expect(colour(0)).toBe(interpolateRdBu(0.5))
-    expect(colour(-0.1)).toBe(interpolateRdBu(0.1))
-    expect(colour(0.1)).toBe(interpolateRdBu(0.9))
-  })
-
-  it('keeps a signed colour centred on zero even when most values are gains', () => {
-    const colour = colourScale({ scale: 'percentile', signed: true }, [0.05, 0.1, 0.2, 0])
-
-    expect(colour(0)).toBe(interpolateRdBu(0.5))
-  })
-
-  it('does not let one outlier wash every other signed colour out to white', () => {
-    const ordinaryDays = Array.from({ length: 19 }, (_, index) => (index % 2 ? 0.02 : -0.02))
-    const colour = colourScale({ scale: 'percentile', signed: true }, [...ordinaryDays, 0.5])
-
-    expect(colour(0.02)).toBe(interpolateRdBu(0.9))
-    expect(colour(0.5)).toBe(interpolateRdBu(0.9))
-  })
-
-  it('shows a missing value in neutral grey', () => {
-    expect(colourScale({ scale: 'linear', signed: false }, [1, null])(null)).toBe(MISSING_COLOUR)
-    expect(colourScale({ scale: 'linear', signed: true }, [1, null])(null)).toBe(MISSING_COLOUR)
   })
 })

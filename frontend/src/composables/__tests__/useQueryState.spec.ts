@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { defineComponent } from 'vue'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 
-import { useQueryColumns, useQueryFilters, useQuerySort } from '../useQueryState'
+import { useQueryColumns, useQueryFilters, useQueryHeight, useQuerySort } from '../useQueryState'
 
 /** Runs a composable inside a component with a real router opened at `url`. */
 async function useWithRouterAt<T>(url: string, composable: () => T): Promise<[T, Router]> {
@@ -103,5 +103,26 @@ describe('useQueryColumns', () => {
     await flushPromises()
     expect(router.currentRoute.value.fullPath).toBe('/list?sort=ticker&cols=')
     expect(columns.value).toEqual([])
+  })
+})
+
+describe('useQueryHeight', () => {
+  const useHeight = () => useQueryHeight('one_year_return')
+
+  it('shows the default metric until the URL names one', async () => {
+    const [untouched] = await useWithRouterAt('/city', useHeight)
+    const [chosen] = await useWithRouterAt('/city?height=beta_1y', useHeight)
+
+    expect(untouched.value).toBe('one_year_return')
+    expect(chosen.value).toBe('beta_1y')
+  })
+
+  it('writes the pick to the URL and keeps the other params', async () => {
+    const [height, router] = await useWithRouterAt('/city?sector=Technology', useHeight)
+
+    height.value = 'beta_1y'
+    await flushPromises()
+
+    expect(router.currentRoute.value.query).toEqual({ sector: 'Technology', height: 'beta_1y' })
   })
 })

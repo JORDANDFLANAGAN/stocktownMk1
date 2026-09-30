@@ -29,14 +29,14 @@ anything here disagrees), `README.md` (setup, commands), `StockTownOutline.md`
 | WS | Hand-written `LiveBar` type + `parseLiveMessage` (`src/api/live.ts`) |
 | DI | `app.provide(API_KEY, createApi())`; stores call `useApi()`. Tests provide fakes |
 | State | Pinia: `useUniverseStore`, `useFundamentalsStore`. Live feed: `useLiveBar` composable owned by the drawer. Everything shareable (view, ticker, sort, filters, metric picks) lives in the URL |
-| URL | `/:universeId/list[/ticker/:ticker]`, `/:universeId/city[/ticker/:ticker]`; query `?sort=-beta_1y&sector=Technology&sector=Financials&q=aapl&cols=beta_1y&height=one_year_return&color=day_change` |
+| URL | `/:universeId/list[/ticker/:ticker]`, `/:universeId/city[/ticker/:ticker]`; query `?sort=-beta_1y&sector=Technology&sector=Financials&q=aapl&cols=beta_1y&height=one_year_return` |
 | Loading UX | Layout watches the URL's universe id and calls `store.load`; skeleton + "Building today's snapshot…" while loading; per-store `{loading, error}` thereafter. No `<Suspense>` (experimental) |
 | List | TanStack Table v9 for sorting + rendering; metric columns chosen with a column picker (`?cols=`; default 1-year return + day change, so the table fits the screen — the drawer shows every metric, and serves the city too); filtering is the shared pure `filterPositions`; single-column sort; no pagination; virtual scrolling only if a real portfolio needs it; grouping by asset class via v9 later |
 | List filters | Ticker/name search + sector multi-select (searchable dropdown, right-aligned above Columns); no metric range filters |
 | Styling | Tailwind v4 + shadcn-vue (`vega`, zinc neutral, teal primary, self-hosted Inter). Plain Tailwind markup until a shadcn component earns its place (the drawer's Sheet, the column picker's DropdownMenu). `shadcn-vue add` inserts a Google Fonts `@import` into `main.css` each time — delete it (Inter is self-hosted) |
 | Formatting | `src/lib/format.ts` (`Intl.NumberFormat('en-US')`, typographic minus), driven by `metric.unit` |
 | Popup | Right-side drawer, nested child route of each view; sections: header / city metrics / fundamentals / live |
-| City | Treemap of treemaps (sector districts → holdings, padding = streets); one `InstancedMesh` of unit boxes; `MapControls`, polar clamp `[15°, 75°]`; palettes plasma (sequential) and RdBu clipped `[0.1, 0.9]` (diverging, from the `signed` flag); hover/select outline. Route lazy-loaded so list-only visits never download Three.js |
+| City | Treemap of treemaps (sector districts → holdings, padding = streets); one `InstancedMesh` of unit boxes; `MapControls`, polar clamp `[15°, 75°]`; colour = sector (ColorBrewer Set3 without its grey; grey = Unclassified); hover/select outline. Route lazy-loaded so list-only visits never download Three.js |
 | Testing | Vitest + Testing Library; behavioural names; fakes injected, no `vi.mock`; every test mutation-verified; non-SPY fixture (`TEST_PORTFOLIO`) |
 | CI | One workflow: backend (uv, pytest) + frontend (schema drift, lint, Prettier, tests, build) |
 | Prod serving | Deferred until deployment; likely FastAPI serving `frontend/dist` same-origin with an `index.html` fallback for deep links |
@@ -118,7 +118,7 @@ it gets `tabindex="0"` and its visible text as `aria-label`. jsdom has no
 as enums (fixed values in the generated TypeScript); `signed` on every
 metric.
 
-Tests so far: 120 frontend (Vitest) + 78 backend, all mutation-verified.
+Tests so far: 131 frontend (Vitest) + 78 backend, all mutation-verified.
 Shared helpers: `src/__tests__/fixtures.ts` (`TEST_PORTFOLIO`, `TEST_CATALOGUE`,
 `TEST_INSTRUMENT`),
 `src/__tests__/fakeApi.ts` (`fakeApi`, `piniaWith`),
@@ -212,18 +212,15 @@ Decisions (tune once seen in the browser):
   middle rank, a single or all-equal set sits at mid-height. d3's
   `scaleSequentialQuantile` maps between-values to the lower rank, all-equal
   to the top and a single value to `NaN`.
-- Signed colours: RdBu inner 80%, white at 0, red losses, blue gains
-  (colour-blind friendly); full strength at the 95th percentile of |moves|
-  so one outlier doesn't wash the city out. Unsigned: plasma, following the
-  metric's scale. Missing value: height 1, grey (zinc-400).
+- Missing value: height 1.
 - Log metrics with zero or negative values fall back to linear; an
   all-equal set gets d3's midpoint (0.5).
 
 Canvas skeleton done (`components/city/CityCanvas.vue`, `views/CityView.vue`):
 
-- `CityView` is lazy-loaded; Three.js lives in its own chunk (~140 kB gzip,
-  main bundle unchanged at ~110 kB). The build warns that this chunk
-  (~560 kB minified, mostly Three.js) is over Vite's 500 kB default —
+- `CityView` is lazy-loaded; Three.js lives in its own chunk (~150 kB gzip;
+  main bundle ~120 kB after the sector Combobox). The build warns that this
+  chunk (~590 kB minified, mostly Three.js) is over Vite's 500 kB default —
   expected, and deliberately not silenced: `chunkSizeWarningLimit` is global,
   so raising it would also stop guarding the main bundle. Investigate any
   *other* chunk over the limit.
@@ -236,7 +233,35 @@ Canvas skeleton done (`components/city/CityCanvas.vue`, `views/CityView.vue`):
   not every frame. Everything is disposed on unmount (GPU memory isn't
   garbage collected). Camera starts at (0, 90, 110); `MapControls` polar
   angle 15°–75° (never below ground), distance 15–300.
-- Placeholder look until the pickers: every building 4 high, zinc-500.
+
+Height picker, sector colours and top-down view done
+(`components/city/MetricPicker.vue`, `ViewModeToggle.vue`,
+`lib/cityAppearance.ts`, `lib/cityView.ts`):
+
+- Colour = sector, not a metric. Metric colouring (RdBu for signed, plasma
+  for unsigned) was built, then dropped entirely as a product call.
+  ColorBrewer Set3 without its grey gives exactly 11 colours for the S&P's
+  11 sectors; grey (zinc-400) = Unclassified. Colours are assigned in
+  `sectorsIn` order (alphabetical), so the same universe always gets the
+  same colours with no hard-coded sector names; the palette repeats past
+  11. The treemap's districts group each sector too, so colour reinforces
+  them.
+- One `MetricPicker` (DropdownMenu radio group, same look as Columns; no
+  shadcn Select) for Height, overlaid top-left on the canvas. Default
+  1-year return (the list's first default column). `?height=` via
+  `useQueryHeight`; a key the catalogue doesn't know shows its first metric.
+- `styleBuildings` (pure) scales heights against the positions on screen
+  and matches plots to positions by ticker (the treemap orders by weight).
+  `CityCanvas` only draws; the mesh is rebuilt on every pick (fine for 500
+  boxes; update in place only if the browser shows lag).
+- The backend's `signed` flag stays: the formatters use it for "+".
+- **3D | Top-down** toggle (top-right). In 3D, tall buildings hide small
+  ones, so top-down uses a separate orthographic camera looking straight
+  down and the city reads as a flat treemap (a perspective camera from
+  above would still show building sides near the edges). Pan + zoom only
+  (1–12×); 3D returns to the starting view. Not in the URL: it's camera
+  state, like orbit and zoom. `topDownFrustum` (pure) fits the city to the
+  screen's shorter side.
 
 **Deliverables:**
 
@@ -247,16 +272,15 @@ Canvas skeleton done (`components/city/CityCanvas.vue`, `views/CityView.vue`):
   `d3.treemap` (street padding between districts, alley padding between
   buildings); `null` sector → Unclassified.
 - `src/lib/cityScales.ts` — pure: height (`scaleLinear` / `scaleLog` /
-  `scaleQuantile` → `[1, 20]`, log falls back to linear for non-positive
-  values) and colour (plasma, or RdBu clipped and centred on 0 when
-  `signed`; null → neutral grey).
-- `useQueryMetrics` in `useQueryState.ts` — `?height=` / `?color=`.
-- `components/city/MetricPickers.vue` (two shadcn Selects from the
-  catalogue), `CityCanvas.vue` (one component owning the imperative Three.js
+  percentile rank → `[1, 20]`, log falls back to linear for non-positive
+  values).
+- `src/lib/cityAppearance.ts` — pure: `styleBuildings`, `sectorColours`.
+- `useQueryHeight` in `useQueryState.ts` — `?height=`.
+- `components/city/MetricPicker.vue` (Height), `CityCanvas.vue` (one component owning the imperative Three.js
   scene: renderer, camera, `MapControls`, lights, ground, one
   `InstancedMesh`; `watch` rebuilds matrices/colours; render on change, not
   every frame; dispose everything on unmount), `SectorLabels.vue`
-  (`CSS2DRenderer`), `BuildingTooltip.vue`, `Legend.vue`.
+  (`CSS2DRenderer`), `BuildingTooltip.vue`, `Legend.vue` (sector key).
 - Filters shared with the list: filtered-out buildings are dimmed.
 - Hover: raycast on `pointermove` (per animation frame) → outline + 1.05×.
   Click → `city-ticker` route with the query kept; selected building gets a
@@ -265,15 +289,19 @@ Canvas skeleton done (`components/city/CityCanvas.vue`, `views/CityView.vue`):
 **Tests:** `cityLayout.spec.ts` (area proportional to weight; one district
 per sector containing its buildings; street/alley gaps between every pair),
 `cityScales.spec.ts` (domain edges → `[1, 20]`; ranks and ties; log
-fallback; 0 → white when signed; outlier saturation; null → grey). No component
+fallback; null → height 1), `cityAppearance.spec.ts` (height by metric,
+colour by sector, matched by ticker; 11 distinct non-grey sector colours;
+Unclassified always grey; palette repeats), `cityView.spec.ts` (the
+top-down frustum fits wide, tall and square screens). No component
 test for `CityCanvas` (WebGL in jsdom isn't worth it) — browser check instead.
 
 **Done when:** `/spy/city` renders the city with visible streets; pickers
 update it and the URL; hover/click/drawer work; orbiting is smooth and the
-camera can't go below ground; the legend follows the colour metric.
+camera can't go below ground; the legend keys the sector colours.
 
 **Checkpoints:** pure layout + scales → canvas skeleton (fixed boxes) →
-pickers → hover + tooltip → click → labels + legend → browser check.
+height picker + sector colours → hover + tooltip → click → labels + legend →
+browser check.
 
 ---
 

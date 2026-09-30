@@ -8,21 +8,22 @@ import {
   Mesh,
   MeshStandardMaterial,
   Object3D,
+  OrthographicCamera,
   PerspectiveCamera,
   PlaneGeometry,
   Scene,
+  Vector3,
   WebGLRenderer,
 } from 'three'
 import { MapControls } from 'three/addons/controls/MapControls.js'
 import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 
-import { CITY_SIZE, type BuildingPlot } from '@/lib/cityLayout'
+import type { StyledBuilding } from '@/lib/cityAppearance'
+import { CITY_SIZE } from '@/lib/cityLayout'
+import { topDownFrustum, type CityViewMode } from '@/lib/cityView'
 
-const props = defineProps<{ buildings: BuildingPlot[] }>()
+const props = defineProps<{ buildings: StyledBuilding[]; viewMode: CityViewMode }>()
 
-// Until the metric pickers arrive, every building gets the same height and colour.
-const PLACEHOLDER_HEIGHT = 4
-const PLACEHOLDER_COLOUR = '#71717a' // zinc-500
 const GROUND_COLOUR = '#e4e4e7' // zinc-200
 const BACKGROUND_COLOUR = '#fafafa' // zinc-50
 const GROUND_MARGIN = 1.2 // ground extends a little past the city's edge
@@ -34,10 +35,19 @@ const MAX_POLAR_ANGLE = (75 * Math.PI) / 180
 const MIN_DISTANCE = 15
 const MAX_DISTANCE = 300
 
+const START_POSITION = new Vector3(0, 90, 110) // the 3D view, looking north over the city
+// Straight down from above the tallest building; an orthographic camera's height doesn't change
+// the picture, only what's in front of it.
+const TOP_DOWN_HEIGHT = 200
+const TOP_DOWN_FRAME = CITY_SIZE * GROUND_MARGIN // the ground fills the screen's shorter side
+const TOP_DOWN_MAX_ZOOM = 12
+
 interface CityScene {
   renderer: WebGLRenderer
   scene: Scene
-  camera: PerspectiveCamera
+  perspectiveCamera: PerspectiveCamera
+  topDownCamera: OrthographicCamera
+  camera: PerspectiveCamera | OrthographicCamera // whichever the view mode uses
   controls: MapControls
   resizeObserver: ResizeObserver
 }
@@ -55,9 +65,11 @@ let buildingsMesh: InstancedMesh | null = null
 
 onMounted(() => {
   city = createScene(container.value!)
+  showViewMode(props.viewMode)
   showBuildings(props.buildings)
 })
 watch(() => props.buildings, showBuildings)
+watch(() => props.viewMode, showViewMode)
 onBeforeUnmount(disposeScene)
 
 function createScene(host: HTMLElement): CityScene {
@@ -75,25 +87,53 @@ function createScene(host: HTMLElement): CityScene {
   ground.rotation.x = -Math.PI / 2 // PlaneGeometry stands upright; lay it flat
   scene.add(ground)
 
-  const camera = new PerspectiveCamera(45, 1, 0.5, 1000)
-  camera.position.set(0, 90, 110)
+  const perspectiveCamera = new PerspectiveCamera(45, 1, 0.5, 1000)
+  const topDownCamera = new OrthographicCamera(-1, 1, 1, -1, 0.5, 1000) // fitted in fitTo
 
-  const controls = new MapControls(camera, renderer.domElement)
+  const controls = new MapControls(perspectiveCamera, renderer.domElement)
   controls.minPolarAngle = MIN_POLAR_ANGLE
   controls.maxPolarAngle = MAX_POLAR_ANGLE
   controls.minDistance = MIN_DISTANCE
   controls.maxDistance = MAX_DISTANCE
+  controls.maxZoom = TOP_DOWN_MAX_ZOOM // orthographic zoom; the distance limits cover 3D
   controls.addEventListener('change', render) // draw on change, not every frame
-  controls.update()
 
   const resizeObserver = new ResizeObserver(() => fitTo(host))
   resizeObserver.observe(host)
 
-  return { renderer, scene, camera, controls, resizeObserver }
+  return {
+    renderer,
+    scene,
+    perspectiveCamera,
+    topDownCamera,
+    camera: perspectiveCamera,
+    controls,
+    resizeObserver,
+  }
+}
+
+/** 3D: the starting orbit view. Top-down: straight down, flat like a treemap; pan and zoom only. */
+function showViewMode(mode: CityViewMode): void {
+  if (city === null) return
+  const topDown = mode === 'top-down'
+  city.camera = topDown ? city.topDownCamera : city.perspectiveCamera
+  city.controls.object = city.camera
+  city.controls.enableRotate = !topDown
+  city.controls.minPolarAngle = topDown ? 0 : MIN_POLAR_ANGLE // 0 = straight down
+  city.controls.target.set(0, 0, 0)
+  if (topDown) {
+    city.topDownCamera.position.set(0, TOP_DOWN_HEIGHT, 0)
+    city.topDownCamera.zoom = 1
+    city.topDownCamera.updateProjectionMatrix()
+  } else {
+    city.perspectiveCamera.position.copy(START_POSITION)
+  }
+  city.controls.update()
+  render()
 }
 
 /** Replaces the buildings: one instanced mesh draws them all in a single call. */
-function showBuildings(buildings: BuildingPlot[]): void {
+function showBuildings(buildings: StyledBuilding[]): void {
   if (city === null) return
   if (buildingsMesh !== null) {
     city.scene.remove(buildingsMesh)
@@ -102,13 +142,13 @@ function showBuildings(buildings: BuildingPlot[]): void {
 
   buildingsMesh = new InstancedMesh(boxGeometry, buildingMaterial, buildings.length)
   const placement = new Object3D()
-  const colour = new Color(PLACEHOLDER_COLOUR)
+  const colour = new Color()
   buildings.forEach((building, index) => {
     placement.position.set(building.x, 0, building.z)
-    placement.scale.set(building.width, PLACEHOLDER_HEIGHT, building.depth)
+    placement.scale.set(building.width, building.height, building.depth)
     placement.updateMatrix()
     buildingsMesh!.setMatrixAt(index, placement.matrix)
-    buildingsMesh!.setColorAt(index, colour)
+    buildingsMesh!.setColorAt(index, colour.set(building.colour))
   })
   city.scene.add(buildingsMesh)
   render()
@@ -119,8 +159,10 @@ function fitTo(host: HTMLElement): void {
   const { clientWidth: width, clientHeight: height } = host
   if (width === 0 || height === 0) return
   city.renderer.setSize(width, height)
-  city.camera.aspect = width / height
-  city.camera.updateProjectionMatrix()
+  city.perspectiveCamera.aspect = width / height
+  city.perspectiveCamera.updateProjectionMatrix()
+  Object.assign(city.topDownCamera, topDownFrustum(TOP_DOWN_FRAME, width / height))
+  city.topDownCamera.updateProjectionMatrix()
   render()
 }
 

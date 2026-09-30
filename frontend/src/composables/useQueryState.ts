@@ -8,6 +8,7 @@ import { useRoute, useRouter, type LocationQueryRaw, type LocationQueryValue } f
  *   &sector=Technology&sector=Utilities
  *   &q=apple
  *   &cols=one_year_return&cols=beta_1y   metric columns shown (absent = the defaults)
+ *   &height=one_year_return   metric the city's heights show (absent = the default)
  * Each setter replaces the URL (no new history entry) and keeps the other params.
  */
 
@@ -45,6 +46,17 @@ export function useQueryColumns(defaults: string[]): WritableComputedRef<string[
     // absent = never chosen, so the defaults; an empty `cols=` = every metric column hidden
     get: () => (route.query.cols === undefined ? defaults : allValues(route.query.cols)),
     set: (chosen) => replaceQuery({ cols: chosen.length > 0 ? chosen : '' }),
+  })
+}
+
+/** Metric the city's building heights show; absent = the default. */
+export function useQueryHeight(defaultKey: string): WritableComputedRef<string> {
+  const route = useRoute()
+  const replaceQuery = useReplaceQuery()
+
+  return computed({
+    get: () => firstValue(route.query.height) || defaultKey,
+    set: (key) => replaceQuery({ height: key }),
   })
 }
 

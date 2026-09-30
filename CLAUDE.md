@@ -4,7 +4,7 @@ Short handover doc so a new Claude session can pick up where the previous one le
 
 ## What we're building
 
-A 3D city visualisation of a stock index or portfolio where each holding is a building. Footprint = index/portfolio weight; height and colour = viewer-selectable metrics. The S&P 500 is the MVP universe; the long-term goal is users importing their own portfolio (or another fund) and seeing it as a city. See `StockTownOutline.md` for the MVP scope, metric catalogue, and roadmap.
+A 3D city visualisation of a stock index or portfolio where each holding is a building. Footprint = index/portfolio weight; height = a viewer-selectable metric; colour = sector. The S&P 500 is the MVP universe; the long-term goal is users importing their own portfolio (or another fund) and seeing it as a city. See `StockTownOutline.md` for the MVP scope, metric catalogue, and roadmap.
 
 ## Where things stand
 
@@ -12,7 +12,7 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Metric layer: complete.** 7 price-based metrics in `services/metrics/`, computed from a single Alpaca fetch. Full S&P 500 × 7 metrics ≈ 5s (fetch; the maths is ~0.2s). Preview with `uv run python -m stocktown metrics [TICKERS... | --spy]`. Verified: beta of VOO/IVV vs SPY ≈ 1.00.
 
-**Tests:** 78 backend (pytest, ~0.7s) + 120 frontend (Vitest), behavioural and mutation-checked.
+**Tests:** 78 backend (pytest, ~0.7s) + 131 frontend (Vitest), behavioural and mutation-checked.
 
 **Tooling: uv.** `uv sync` to set up, `uv run …` to run, `uv add [--dev] <pkg>` for dependencies. `uv.lock` pins versions and is committed. Dev dependencies live in `[dependency-groups] dev` in `pyproject.toml`.
 
@@ -22,7 +22,7 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Live popup stream (Phase B): complete.** `WS /live?ticker=` sends the latest bar immediately, then minute bars. `LiveBarHub` (`services/live.py`) shares Alpaca's ONE allowed WebSocket connection across all popups: ref-counted per-ticker subscriptions, lazy connect, idle disconnect after 60s, reconnect + resubscribe with backoff, bounded per-viewer queues (drop oldest). `AssetCatalogue` (`services/assets.py`) resolves any ticker spelling for both popup endpoints. Verified live against Alpaca and a real uvicorn server.
 
-**Frontend: in progress** — Vue 3 + TypeScript + Vite in `frontend/`, following `FrontendPlan.md` (phased plan + global decisions; read it before frontend work). Phase 0 (scaffold, Tailwind, shadcn-vue, CI), Phase 1 (typed API client, live message parser), Phase 2 (stores, live-bar composable) Phase 3 (routes, layout shell, formatters) and Phase 4 (list view, plus a column picker: 1-year return + day change by default, the drawer shows every metric) done. Phase 5 (drawer) in progress: shell, header (live price, day change), metrics and fundamentals sections and live status (header tag, e.g. "Live · 15:59 ET") done. Phase 6 (city) in progress: layout + scales and canvas skeleton (lazy-loaded Three.js, grey boxes, orbit controls) done; next: metric pickers.
+**Frontend: in progress** — Vue 3 + TypeScript + Vite in `frontend/`, following `FrontendPlan.md` (phased plan + global decisions; read it before frontend work). Phase 0 (scaffold, Tailwind, shadcn-vue, CI), Phase 1 (typed API client, live message parser), Phase 2 (stores, live-bar composable) Phase 3 (routes, layout shell, formatters) and Phase 4 (list view, plus a column picker: 1-year return + day change by default, the drawer shows every metric) done. Phase 5 (drawer) in progress: shell, header (live price, day change), metrics and fundamentals sections and live status (header tag, e.g. "Live · 15:59 ET") done. Phase 6 (city) in progress: layout + scales and canvas skeleton (lazy-loaded Three.js, orbit controls), height picker, sector colours and a 3D / top-down toggle done; next: hover + tooltip.
 
 **Not yet built:** DB persistence (deliberately after the frontend).
 
@@ -59,7 +59,7 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 
 ## Metric layer decisions
 
-- **City metrics are price-only (Alpaca).** Finnhub is 1 call/sec with no bulk endpoint (~9 min for the S&P, ~33 min for a 2,000-stock fund), so fundamentals can't drive city-wide height/colour for arbitrary portfolios. They load on **click** (not hover — sweeping the mouse would burn the 60/min limit) in the detail popup, cached per ticker per day.
+- **City metrics are price-only (Alpaca).** Finnhub is 1 call/sec with no bulk endpoint (~9 min for the S&P, ~33 min for a 2,000-stock fund), so fundamentals can't drive city-wide heights for arbitrary portfolios. They load on **click** (not hover — sweeping the mouse would burn the 60/min limit) in the detail popup, cached per ticker per day.
 - **Metrics are per ticker, never per universe.** A metric doesn't know whether a ticker came from SPY or a user portfolio. Raw values are stored; scaling (`Scale`) is applied against whatever universe is on screen, so a value can be "high" in a portfolio and "average" in the S&P.
 - **`MarketData`** is a lazy per-run cache: each source fetched once on first access. SPY (`BENCHMARK_TICKER`) rides along in the same batch — used for beta and for `latest_session` (the most recent trading day, so no market calendar is needed).
 - **`compute()` returns an entry for every requested ticker.** `None` = unavailable (short history, stale/halted, missing). Partial data is normal, not an error — enables progressive loading later.
@@ -102,7 +102,7 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 
 ## What's next (in order)
 
-1. **Frontend** (user priority: a somewhat-functioning frontend before persistence): continue `FrontendPlan.md` at Phase 6 (city: metric pickers next). Later from the list: CSV export, portfolio columns, select rows → highlight in city.
+1. **Frontend** (user priority: a somewhat-functioning frontend before persistence): continue `FrontendPlan.md` at Phase 6 (city: hover + tooltip next). Later from the list: CSV export, portfolio columns, select rows → highlight in city.
 2. **Persistence** (`persistence/`): SQLite for MVP. Replaces the in-memory snapshot; daily bars for lookback; historical minute bars (REST, after the close) for replay; metric values cached **per ticker**.
 3. **Provider parser tests** (optional, small): `extract_pe_ratio`, SPY workbook parsing, `normalise_ticker`.
 
