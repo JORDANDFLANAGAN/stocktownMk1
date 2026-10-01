@@ -23,3 +23,6 @@ __pycache__/
 # Build artefacts
 dist/
 build/
+
+# Local SQLite database (persistence)
+data/

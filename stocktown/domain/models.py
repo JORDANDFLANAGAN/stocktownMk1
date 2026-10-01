@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 
@@ -49,3 +50,13 @@ class MinuteBar:
     low: float
     close: float
     volume: int
+
+
+@dataclass(frozen=True, slots=True)
+class UniverseSnapshot:
+    universe_id: str
+    built_on: date  # the New York day it was built
+    session_date: date | None  # the trading day the prices are from
+    holdings: tuple[Holding, ...]
+    metric_values: Mapping[str, Mapping[str, float | None]]  # metric key → ticker → value
+    last_closes: Mapping[str, float | None]  # ticker → most recent close (None: no price history)

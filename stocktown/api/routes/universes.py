@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends
 
 from stocktown.api.dependencies import get_snapshot_service
 from stocktown.api.schemas import PositionResponse, UniverseResponse
-from stocktown.domain.models import Holding
-from stocktown.services.snapshot import SnapshotService, UniverseSnapshot
+from stocktown.domain.models import Holding, UniverseSnapshot
+from stocktown.services.snapshot import SnapshotService
 from stocktown.services.universes import UNIVERSES
 
 EQUITY_ASSET_CLASS: Final[str] = "equity"

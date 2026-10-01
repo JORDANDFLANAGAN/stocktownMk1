@@ -3,7 +3,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from functools import lru_cache
 
+from stocktown.config import get_database_path
 from stocktown.domain.models import MinuteBar
+from stocktown.persistence import SnapshotStore
 from stocktown.providers.alpaca import load_latest_bar
 from stocktown.services.assets import AssetCatalogue
 from stocktown.services.instruments import InstrumentService
@@ -17,7 +19,8 @@ LatestBarLoader = Callable[[str], MinuteBar | None]
 @lru_cache(maxsize=1)
 def get_snapshot_service() -> SnapshotService:
     return SnapshotService(
-        universe_loaders={universe.id: universe.load_holdings for universe in UNIVERSES.values()}
+        universe_loaders={universe.id: universe.load_holdings for universe in UNIVERSES.values()},
+        store=SnapshotStore(get_database_path()),
     )
 
 

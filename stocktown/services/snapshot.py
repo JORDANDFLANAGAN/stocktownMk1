@@ -5,15 +5,15 @@ import math
 import threading
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Final
 
 from stocktown.domain.markets import US_MARKET_TIMEZONE
-from stocktown.domain.models import Holding
+from stocktown.domain.models import Holding, UniverseSnapshot
 from stocktown.exceptions import UnknownUniverseError, UpstreamUnavailableError
+from stocktown.persistence import SnapshotStore
 from stocktown.providers.alpaca import load_daily_bars
-from stocktown.services.metrics import MarketData, MetricValues, compute_metrics
+from stocktown.services.metrics import MarketData, compute_metrics
 from stocktown.services.metrics.market_data import DailyBarsLoader
 
 # After a failed build, serve what we have (or 503) instead of rebuilding on every request.
@@ -28,22 +28,18 @@ def today_in_new_york() -> date:
     return datetime.now(US_MARKET_TIMEZONE).date()
 
 
-@dataclass(frozen=True, slots=True)
-class UniverseSnapshot:
-    universe_id: str
-    built_on: date
-    session_date: date | None  # the trading day the prices are from
-    holdings: tuple[Holding, ...]
-    metric_values: Mapping[str, MetricValues]  # metric key → ticker → value
-    last_closes: Mapping[str, float | None]  # ticker → most recent close (None: no price history)
+def start_daemon_thread(job: Callable[[], None]) -> None:
+    threading.Thread(target=job, daemon=True).start()
 
 
 class SnapshotService:
-    """Builds each universe's snapshot once per New York day and serves it from memory.
+    """Builds each universe's snapshot once per New York day, keeps it in memory and (with a
+    store) on disk, so a restart serves the last city at once.
 
-    Stand-in for persistence: the lock makes concurrent first requests wait for a single
-    build, a failed daily refresh keeps serving the previous snapshot, and a failure is not
-    retried until RETRY_FAILED_BUILD_AFTER_SECONDS have passed.
+    A stale snapshot (an earlier day's) is served straight away while one background rebuild
+    replaces it. Only a universe with no snapshot at all makes a request wait for a build, and
+    the lock makes concurrent first requests wait for a single one. A failed build keeps serving
+    what we have, and isn't retried until RETRY_FAILED_BUILD_AFTER_SECONDS have passed.
     """
 
     def __init__(
@@ -51,15 +47,20 @@ class SnapshotService:
         *,
         universe_loaders: Mapping[str, UniverseLoader],
         bars_loader: DailyBarsLoader = load_daily_bars,
+        store: SnapshotStore | None = None,
+        run_in_background: Callable[[Callable[[], None]], None] = start_daemon_thread,
         today: Callable[[], date] = today_in_new_york,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self._universe_loaders = universe_loaders
         self._bars_loader = bars_loader
+        self._store = store
+        self._run_in_background = run_in_background
         self._today = today
         self._monotonic = monotonic
         self._snapshots: dict[str, UniverseSnapshot] = {}
         self._failed_at: dict[str, float] = {}
+        self._rebuilding: set[str] = set()  # universes with a background rebuild in flight
         self._lock = threading.Lock()
 
     def get(self, universe_id: str) -> UniverseSnapshot:
@@ -67,24 +68,78 @@ class SnapshotService:
             raise UnknownUniverseError(universe_id)
 
         with self._lock:
-            cached = self._snapshots.get(universe_id)
-            if cached is not None and cached.built_on == self._today():
-                return cached
-            seconds_until_retry = self._seconds_until_retry(universe_id)
-            if seconds_until_retry > 0:
-                return stale_or_unavailable(cached, retry_after_seconds=seconds_until_retry)
-            try:
-                fresh = self._build(universe_id)
-            except Exception:
-                # Any provider or parser failure — SSGA's workbook format can change silently.
-                logger.exception("Building the %s snapshot failed", universe_id)
-                self._failed_at[universe_id] = self._monotonic()
-                return stale_or_unavailable(
-                    cached, retry_after_seconds=RETRY_FAILED_BUILD_AFTER_SECONDS
-                )
-            self._failed_at.pop(universe_id, None)
-            self._snapshots[universe_id] = fresh
-            return fresh
+            cached = self._snapshots.get(universe_id) or self._load_stored(universe_id)
+            if cached is None:
+                return self._build_now(universe_id)  # nothing to show yet: this caller waits
+            rebuild = cached.built_on != self._today() and self._may_rebuild(universe_id)
+            if rebuild:
+                self._rebuilding.add(universe_id)
+        # Started outside the lock: the rebuild takes the lock itself when it's done.
+        if rebuild:
+            self._run_in_background(lambda: self._rebuild(universe_id))
+        return cached
+
+    def _build_now(self, universe_id: str) -> UniverseSnapshot:
+        """With the lock held, so concurrent first requests wait for a single build."""
+        seconds_until_retry = self._seconds_until_retry(universe_id)
+        if seconds_until_retry > 0:
+            raise UpstreamUnavailableError("market data", retry_after_seconds=seconds_until_retry)
+        try:
+            fresh = self._build(universe_id)
+        except Exception:
+            self._record_failure(universe_id)
+            raise UpstreamUnavailableError(
+                "market data", retry_after_seconds=RETRY_FAILED_BUILD_AFTER_SECONDS
+            )
+        self._keep(fresh)
+        return fresh
+
+    def _rebuild(self, universe_id: str) -> None:
+        """In the background: builds without the lock, so requests keep getting the stale city."""
+        try:
+            fresh = self._build(universe_id)
+        except Exception:
+            with self._lock:
+                self._record_failure(universe_id)
+                self._rebuilding.discard(universe_id)
+            return
+        with self._lock:
+            self._keep(fresh)
+            self._rebuilding.discard(universe_id)
+
+    def _may_rebuild(self, universe_id: str) -> bool:
+        """At most one background rebuild per universe, and none during a failure's backoff."""
+        return universe_id not in self._rebuilding and self._seconds_until_retry(universe_id) <= 0
+
+    def _record_failure(self, universe_id: str) -> None:
+        # Any provider or parser failure — SSGA's workbook format can change silently.
+        logger.exception("Building the %s snapshot failed", universe_id)
+        self._failed_at[universe_id] = self._monotonic()
+
+    def _keep(self, snapshot: UniverseSnapshot) -> None:
+        """With the lock held: serve it from now on, and store it for the next restart."""
+        self._failed_at.pop(snapshot.universe_id, None)
+        self._snapshots[snapshot.universe_id] = snapshot
+        if self._store is None:
+            return
+        try:
+            self._store.save(snapshot)
+        except Exception:
+            # The store is a cache: a full or read-only disk mustn't take the city down.
+            logger.exception("Storing the %s snapshot failed", snapshot.universe_id)
+
+    def _load_stored(self, universe_id: str) -> UniverseSnapshot | None:
+        """The last city built before a restart, if the store has one."""
+        if self._store is None:
+            return None
+        try:
+            stored = self._store.latest(universe_id)
+        except Exception:
+            logger.exception("Reading the stored %s snapshot failed", universe_id)
+            return None
+        if stored is not None:
+            self._snapshots[universe_id] = stored
+        return stored
 
     def _seconds_until_retry(self, universe_id: str) -> int:
         failed_at = self._failed_at.get(universe_id)
@@ -118,11 +173,3 @@ def last_closes(data: MarketData) -> dict[str, float | None]:
         bars = data.daily_bars.get(ticker)
         closes[ticker] = bars[-1].close if bars else None
     return closes
-
-
-def stale_or_unavailable(
-    cached: UniverseSnapshot | None, *, retry_after_seconds: int
-) -> UniverseSnapshot:
-    if cached is None:
-        raise UpstreamUnavailableError("market data", retry_after_seconds=retry_after_seconds)
-    return cached  # stale but usable beats an empty city

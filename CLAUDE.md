@@ -14,11 +14,11 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Metric layer: complete.** 7 price-based metrics in `services/metrics/`, computed from a single Alpaca fetch. Full S&P 500 × 7 metrics ≈ 5s (fetch; the maths is ~0.2s). Preview with `uv run python -m stocktown metrics [TICKERS... | --spy]`. Verified: beta of VOO/IVV vs SPY ≈ 1.00.
 
-**Tests:** 78 backend (pytest, ~0.7s) + 154 frontend (Vitest), behavioural and mutation-checked.
+**Tests:** 91 backend (pytest, ~0.7s) + 154 frontend (Vitest), behavioural and mutation-checked.
 
 **Tooling: uv.** `uv sync` to set up, `uv run …` to run, `uv add [--dev] <pkg>` for dependencies. `uv.lock` pins versions and is committed. Dev dependencies live in `[dependency-groups] dev` in `pyproject.toml`.
 
-**REST API (Phase A): complete.** `uv run uvicorn stocktown.main:app --reload`. `GET /universes/spy` (all positions + sectors + all metrics, one payload), `GET /metrics`, `GET /instruments/{ticker}` (Finnhub popup data). In-memory `SnapshotService` (built at startup ~10s (varies with Alpaca), rebuilt once per New York day, prices up to *yesterday* in New York so a partial session never enters the city; any build failure serves the previous snapshot, and failures back off 5 min before retrying) stands in for persistence.
+**REST API (Phase A): complete.** `uv run uvicorn stocktown.main:app --reload`. `GET /universes/spy` (all positions + sectors + all metrics, one payload), `GET /metrics`, `GET /instruments/{ticker}` (Finnhub popup data). `SnapshotService` (memory + SQLite store; built ~10s from scratch, rebuilt once per New York day, prices up to *yesterday* in New York so a partial session never enters the city; a stale snapshot is served at once while one background rebuild replaces it; any build failure keeps serving what we have, and failures back off 5 min before retrying).
 
 **Sectors** come from the 11 Select Sector SPDR files (SPY's own sector column is empty) — 500/500 coverage.
 
@@ -26,7 +26,7 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Frontend: MVP done** — Vue 3 + TypeScript + Vite in `frontend/`, following `FrontendPlan.md` (phased plan + global decisions; read it before frontend work). Phases 0–6 complete: typed API client, stores, routes, list (sort, sector/search filters, column picker), drawer (live price, metrics, fundamentals) and the Three.js town (height picker, sector colours, 3D / top-down, hover glow + tooltip, click → drawer, labels + legend); filter dimming deferred. Phase 7: keyboard navigation for the list only (one tab stop, arrow keys, focus back on drawer close); the rest (toasts, live-region price, empty states, favicon) set aside as low value at this stage.
 
-**Not yet built:** DB persistence (deliberately after the frontend).
+**Persistence (phase 1): done.** `persistence/SnapshotStore`: each built snapshot stored in SQLite (`data/stocktown.sqlite3`, `STOCKTOWN_DB_PATH` overrides; last 7 days kept). Measured against a real server: first request after a restart 9.4s → 0.004s; on a new day the first request is instant with yesterday's prices and today's arrive once the background rebuild lands.
 
 **To re-check during US market hours:** whether Alpaca's free-tier latest-bar endpoint is real-time on IEX or 15-min delayed (pre-market it correctly returns the previous close). If delayed, label the popup's first price.
 
@@ -53,7 +53,8 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 - **Ticker normalisation via strip-and-uppercase.** Works because SPY and Alpaca share-class punctuation is the only variation. Currently 100% resolution on the S&P 500. Alpaca `/v2/assets` is the source of truth for canonical symbols.
 - **Credentials are masked in `__repr__`.** `AlpacaCredentials`/`FinnhubCredentials` override `__repr__` to print `***`. Prevents accidental leaks via `print()`, logging, or debuggers. `.env` is gitignored.
 - **No premature abstractions.** No `PriceProvider`/`ReferenceProvider` `Protocol` interfaces yet — we have exactly one implementation of each. Added when a second implementation arrives (Phase 3, European provider). Same reasoning for custom exceptions and the DB layer.
-- **Concurrent fetching, capped at 4.** Alpaca bar batches and the 11 SSGA sector workbooks are independent requests, so they're fetched side by side via `ThreadPoolExecutor` (`MAX_CONCURRENT_BATCHES`, `MAX_CONCURRENT_DOWNLOADS`): cold snapshot build ~30s → ~10s, identical data, same request count (Alpaca free tier: 200/min). A stored snapshot (persistence phase) will remove the cold build entirely.
+- **Concurrent fetching, capped at 4.** Alpaca bar batches and the 11 SSGA sector workbooks are independent requests, so they're fetched side by side via `ThreadPoolExecutor` (`MAX_CONCURRENT_BATCHES`, `MAX_CONCURRENT_DOWNLOADS`): cold snapshot build ~30s → ~10s, identical data, same request count (Alpaca free tier: 200/min). The stored snapshot now hides the cold build except on the very first run.
+- **Persistence: stdlib `sqlite3`, no ORM.** One table, snapshot as a JSON payload (always read and written whole); one short-lived connection per call (thread-safe without locking); `CREATE TABLE IF NOT EXISTS` until the first schema change needs `PRAGMA user_version` migrations. The store is a cache: read/write failures are logged, never raised. `UniverseSnapshot` lives in `domain/` so persistence and services don't import each other. The background rebuild runner is injected (`run_in_background`) so tests run it deterministically.
 - **Finnhub rate-limited via `time.sleep(1.1)` between calls.** Naïve but sufficient now that Finnhub is only called per clicked stock. Not extracted to a shared rate-limiter until a second rate-limited API needs one.
 - **Two frontend views, one state.** A Three.js city and a sortable/filterable list, both rendering the same state: two Pinia stores (universe, fundamentals) and a live-bar composable, plus the URL (sort, filters, metric picks, selected ticker). Filters are shared (list filter dims/hides buildings); sort is list-only. Both open the same popup. Rows never stream — realtime stays popup-only. List is built first: quicker, and it verifies the data path and the numbers the city renders.
 - **Vue 3, not React or Angular.** User knows Angular and doesn't want it; Vue's templates and `ref`/`computed` map closely to Angular, and `watch()` fits imperative Three.js updates better than React's re-render model. Three.js is plain imperative code in one component (no TresJS/R3F-style wrapper). Table: TanStack Table v9 — sorting and rendering; filtering is our own shared pure function.
@@ -104,12 +105,12 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 
 ## What's next (in order)
 
-1. **Persistence** (`persistence/`): SQLite. Replaces the in-memory snapshot, so the first load is instant; daily bars for lookback; historical minute bars for replay; metric values cached **per ticker**.
-2. **Deploy:** public URL (FastAPI serving the built frontend; keys server-side). Check Alpaca/Finnhub terms for public display first.
-3. **README as a landing page:** GIF, pitch, "Try it", architecture diagram, key decisions.
-4. **Depth feature — what-if builder with fund look-through** (Outline § Portfolios and import): curated funds + direct stocks, pro-rata funding, effective weights, overlap/concentration panel.
-5. **Provider parser tests** (optional, small): `extract_pe_ratio`, SPY workbook parsing, `normalise_ticker`.
-6. **Frontend deferred:** filter dimming, the rest of Phase 7, CSV export, portfolio columns, select rows → highlight in city.
+1. **Deploy:** public URL (FastAPI serving the built frontend; keys server-side). Check Alpaca/Finnhub terms for public display first.
+2. **README as a landing page:** GIF, pitch, "Try it", architecture diagram, key decisions.
+3. **Depth feature — what-if builder with fund look-through** (Outline § Portfolios and import): curated funds + direct stocks, pro-rata funding, effective weights, overlap/concentration panel.
+4. **Provider parser tests** (optional, small): `extract_pe_ratio`, SPY workbook parsing, `normalise_ticker`.
+5. **Frontend deferred:** filter dimming, the rest of Phase 7, CSV export, portfolio columns, select rows → highlight in city.
+6. **Persistence phase 2** (when the what-if builder needs it): daily-bars store per ticker, fetched incrementally; re-fetch a ticker's history when the overlapping days' split-adjusted closes change (a split). Minute bars for replay: curated days only, if ever.
 
 API decisions to respect: all endpoints under `/api` (page routes own the rest of the URL space); one payload per city (no `/metrics/{key}` endpoint); items are `positions` with `asset_class`; all units are fractions (weights sum to 1.0); unknown → 404, provider down → 503 + `Retry-After`; tests use `create_app(warm_on_startup=False)` + `dependency_overrides`. WebSocket: unknown ticker → accept then close `4404`; provider down → `4503`; messages carry a `type` field (`"bar"` now, room for `"status"`).
 
