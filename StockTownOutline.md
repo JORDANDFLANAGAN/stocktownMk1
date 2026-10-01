@@ -13,6 +13,23 @@ Stocktown renders a stock index or a personal portfolio as a 3D town: each holdi
 - **Districts** = sectors (potentially grouping stocks on some shared characteristic e.g. tech), later emergent clusters linked by correlation "roads".
 - **The show-off moment:** paste in your own holdings and see your town next to the S&P 500, or replay a crash day and watch the city turn red.
 
+## Goal: a portfolio piece
+
+Stocktown is built to show reviewers (job applications) something that works and is useful — not
+to make money. Reviewers spend minutes, so work is ranked by demo impact:
+
+| # | What | Why |
+| --- | --- | --- |
+| 1 | Live URL | "Click here" beats "clone and run". FastAPI + built frontend on one host; keys server-side |
+| 2 | Persistence | A stored snapshot makes the first load instant (no ~10s cold build) |
+| 3 | README as a landing page | GIF (orbit → hover → click → drawer), one-line pitch, "Try it" link, architecture diagram, 4–5 engineering decisions with reasons |
+| 4 | One feature with analytical depth | Fund look-through what-if builder (below) — data engineering + maths + a visual payoff |
+| 5 | Visible quality | CI badge, test counts, typed end to end, keyboard support |
+
+Skip business-only features (accounts, billing, tax reports). Before going public, check that the
+Alpaca and Finnhub free terms allow a public, non-commercial display; every visitor shares
+Finnhub's 60 calls/min and the single Alpaca WebSocket (both already cached/shared).
+
 ## MVP scope
 
 The MVP is the S&P 500 as a 3D city built from a daily snapshot, with a selectable height and colour metric, a click-through detail popup (fundamentals + live price), plus replay of recorded days. **Live data is popup-only:** the city itself does not stream; only the clicked stock does. This keeps the free-tier WebSocket usage to one ticker at a time. Everything else waits, but the architecture leaves a slot for it.
@@ -226,8 +243,27 @@ The MVP is US-only; non-US holdings arrive in phase 3 through exchange-aware rou
 A portfolio is just another universe, so the city engine needs no changes; the work is in getting holdings in safely. Weight = holding value ÷ total portfolio value, recalculated from live prices.
 
 1. **Manual builder (phase 2):** search a ticker, enter quantity or amount, save. US stocks first.
-2. **CSV import (phase 4):** one small parser per broker export (e.g. DEGIRO, Trading 212) mapping to ticker/ISIN + quantity. Show unmatched rows for the user to fix.
+2. **CSV import:** no standard format. A documented Stocktown template (`ticker, quantity` or
+   `ticker, weight`, optional cost basis; modelled on Sharesight's) plus one adapter per broker,
+   Fidelity's Positions CSV first (cleanest: 17 named columns, multi-account). Robinhood and
+   Trading 212 export transactions only, so holdings must be rebuilt from trades. Parse in the
+   browser (the file never leaves the device) and send tickers + quantities/weights to an endpoint
+   returning the usual universe payload. Every adapter: find the header row; strip `$`, commas and
+   `--`; parentheses = negative; merge accounts; separate cash/money-market; list unsupported rows
+   (options, bonds, CUSIPs); normalise tickers via the Alpaca catalogue.
 3. **Broker APIs (later):** Interactive Brokers and Alpaca have real APIs; aggregators such as SnapTrade cover many brokers. Check pricing and terms first.
+
+**What-if builder (fund look-through)**
+
+- Start from funds with weights; add stocks at a target %. By default the rest shrink pro rata;
+  optionally one chosen fund pays for it. Setting one entry to t scales the others by
+  (1 − t)/(1 − its old weight), so weights always sum to 100%.
+- The city is drawn from effective weights: Σ over funds (fund weight × stock's weight in the
+  fund) + direct weight. The tooltip shows the breakdown; a panel shows top-10 share, effective
+  number of holdings (1 / Σw²) and the biggest overlaps.
+- Fund holdings: issuer daily files (SSGA done; iShares CSV and QQQ next) for a curated list;
+  SEC Form N-PORT (free, every US fund, published quarterly 60 days after quarter-end) later for
+  any fund.
 
 **Views**
 
@@ -274,7 +310,7 @@ Each phase ends with something you can show someone; no phase starts until the p
 | --- | --- | --- |
 | 0. Spike | Script: SPY file + Alpaca daily bars → JSON; static Three.js treemap city | You can orbit a city of 500 boxes locally |
 | 1. MVP | List view, metric dropdowns, animated transitions, click-through popup (fundamentals + live price), replay, deploy | Public link; checklist under MVP scope is ticked |
-| 2. Portfolios (US) | Manual portfolio builder, highlight-in-index and side-by-side views | A portfolio of Apple, Amazon, Nvidia renders with correct weights |
+| 2. Portfolios (US) | What-if builder with fund look-through, highlight-in-index and side-by-side views | A portfolio of Apple, Amazon, Nvidia renders with correct weights |
 | 3. Non-US | Price router, EU provider, FX conversion, exchange calendars | Airbus sits next to Apple with weights in EUR |
 | 4. Import | CSV parsers for at least two brokers | A real broker export imports with unmatched rows flagged |
 | 5. Archetypes | Sector and commodity models, grow rules, small animations | Refinery, farm and tower appear in one city |

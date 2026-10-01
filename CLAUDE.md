@@ -6,6 +6,8 @@ Short handover doc so a new Claude session can pick up where the previous one le
 
 A 3D city visualisation of a stock index or portfolio where each holding is a building. Footprint = index/portfolio weight; height = a viewer-selectable metric; colour = sector. The S&P 500 is the MVP universe; the long-term goal is users importing their own portfolio (or another fund) and seeing it as a city. See `StockTownOutline.md` for the MVP scope, metric catalogue, and roadmap.
 
+**Goal:** a job-application portfolio piece, not a business — rank work by demo impact (Outline § Goal).
+
 ## Where things stand
 
 **Data layer: complete.** Every external data source needed for the MVP is implemented, verified end-to-end (`python -m stocktown verify` currently resolves 500/500 SPY tickers against Alpaca), and organised in a layered Spring-Boot-style structure.
@@ -102,9 +104,12 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 
 ## What's next (in order)
 
-1. **Persistence** (`persistence/`): SQLite for MVP. Replaces the in-memory snapshot; daily bars for lookback; historical minute bars (REST, after the close) for replay; metric values cached **per ticker**.
-2. **Provider parser tests** (optional, small): `extract_pe_ratio`, SPY workbook parsing, `normalise_ticker`.
-3. **Frontend:** done for the MVP. Deferred: filter dimming, the rest of Phase 7, CSV export, portfolio columns, select rows → highlight in city.
+1. **Persistence** (`persistence/`): SQLite. Replaces the in-memory snapshot, so the first load is instant; daily bars for lookback; historical minute bars for replay; metric values cached **per ticker**.
+2. **Deploy:** public URL (FastAPI serving the built frontend; keys server-side). Check Alpaca/Finnhub terms for public display first.
+3. **README as a landing page:** GIF, pitch, "Try it", architecture diagram, key decisions.
+4. **Depth feature — what-if builder with fund look-through** (Outline § Portfolios and import): curated funds + direct stocks, pro-rata funding, effective weights, overlap/concentration panel.
+5. **Provider parser tests** (optional, small): `extract_pe_ratio`, SPY workbook parsing, `normalise_ticker`.
+6. **Frontend deferred:** filter dimming, the rest of Phase 7, CSV export, portfolio columns, select rows → highlight in city.
 
 API decisions to respect: all endpoints under `/api` (page routes own the rest of the URL space); one payload per city (no `/metrics/{key}` endpoint); items are `positions` with `asset_class`; all units are fractions (weights sum to 1.0); unknown → 404, provider down → 503 + `Retry-After`; tests use `create_app(warm_on_startup=False)` + `dependency_overrides`. WebSocket: unknown ticker → accept then close `4404`; provider down → `4503`; messages carry a `type` field (`"bar"` now, room for `"status"`).
 
