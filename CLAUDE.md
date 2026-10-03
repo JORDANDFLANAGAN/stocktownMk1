@@ -105,7 +105,7 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 
 ## What's next (in order)
 
-1. **Deploy (Railway):** FastAPI serving the built frontend: done (`api/frontend.py`). Next: Dockerfile, Railway service (one replica, volume for SQLite, keys as variables). **Keep the URL private:** terms checked 2026-10-03, and neither provider allows redistribution (Finnhub: personal use only, no sharing of data "or derived results" without written approval; Alpaca: "you cannot redistribute Alpaca API data"). The user is emailing both for approval.
+1. **Deploy (Railway):** FastAPI serving the built frontend: done (`api/frontend.py`). Dockerfile: done (two-stage; verified locally with a volume). Next: Railway service (one replica, volume for SQLite, keys as variables). **Keep the URL private:** terms checked 2026-10-03, and neither provider allows redistribution (Finnhub: personal use only, no sharing of data "or derived results" without written approval; Alpaca: "you cannot redistribute Alpaca API data"). The user is emailing both for approval.
 2. **README as a landing page:** GIF, pitch, "Try it", architecture diagram, key decisions. Wait until the user is happy to show the app off. It's also the demo if approval is refused.
 3. **Depth feature — what-if builder with fund look-through** (Outline § Portfolios and import): curated funds + direct stocks, pro-rata funding, effective weights, overlap/concentration panel.
 4. **Provider parser tests** (optional, small): `extract_pe_ratio`, SPY workbook parsing, `normalise_ticker`.

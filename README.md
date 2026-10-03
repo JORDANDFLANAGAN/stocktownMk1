@@ -111,6 +111,23 @@ Two views over one shared state, switchable without reloading data:
 
 Built out from the list view later: column picker, CSV export, portfolio columns (position P&L, contribution to return), selecting rows to highlight them in the city.
 
+## Run with Docker
+
+The production setup: one container where FastAPI serves both the API and the built frontend. Railway builds this same `Dockerfile` on every push to `main`. For day-to-day development use `npm run dev` + `uvicorn --reload` instead.
+
+```bash
+docker build -t stocktown .
+docker run --rm -p 8000:8000 --env-file .env \
+  -v stocktown-data:/data -e STOCKTOWN_DB_PATH=/data/stocktown.sqlite3 \
+  stocktown
+# http://localhost:8000
+```
+
+| Flag | Does |
+|---|---|
+| `--env-file .env` | Passes the API keys at run time; they are never inside the image |
+| `-v stocktown-data:/data` + `STOCKTOWN_DB_PATH` | Keeps the stored snapshot across restarts (as the Railway volume does); without them each start rebuilds the city (~5s) |
+
 ## CLI
 
 `uv run python -m stocktown <command>` runs the data previews.
