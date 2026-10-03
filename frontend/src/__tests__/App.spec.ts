@@ -8,12 +8,26 @@ import { TEST_PORTFOLIO } from './fixtures'
 import { renderAppAt, testPortfolioApi } from './renderApp'
 
 describe('App', () => {
-  it('opens the default universe as a list at the root URL', async () => {
+  it('opens on the home page, which loads no universe until one is chosen', async () => {
     const { api, requestedUniverses } = testPortfolioApi()
 
+    await renderAppAt('/', api)
+
+    expect(screen.getByRole('heading', { name: 'Every stock is a building.' })).toBeTruthy()
+    expect(requestedUniverses).toEqual([])
+  })
+
+  it.each([
+    ['Town', '/spy/town'],
+    ['List', '/spy/list'],
+  ])('opens the S&P 500 %s from its card on the home page', async (view, url) => {
+    const { api, requestedUniverses } = testPortfolioApi()
     const router = await renderAppAt('/', api)
 
-    expect(router.currentRoute.value.fullPath).toBe('/spy/list')
+    await fireEvent.keyDown(screen.getByRole('button', { name: /S&P 500/ }), { key: 'Enter' })
+    await fireEvent.click(await screen.findByRole('menuitem', { name: new RegExp(view) }))
+
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe(url))
     expect(requestedUniverses).toEqual(['spy'])
   })
 

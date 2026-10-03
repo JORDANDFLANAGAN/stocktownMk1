@@ -45,11 +45,12 @@ anything here disagrees), `README.md` (setup, commands), `StockTownOutline.md`
 
 The UI renders *a universe* — `{id, name, session_date, positions[]}` — and
 never assumes it is the S&P 500. Adding an index fund = one backend
-`UNIVERSES` entry, no UI change. Portfolio import later = another source of
+`UNIVERSES` entry, plus its card in the frontend's `UNIVERSES` list (home page) until a
+`GET /api/universes` endpoint is worth adding. Portfolio import later = another source of
 the same shape.
 
-- The universe id lives in the URL; the only `"spy"` literal is
-  `DEFAULT_UNIVERSE_ID` in `src/router/index.ts`.
+- The universe id lives in the URL; the only `"spy"` literal is the home page's
+  `UNIVERSES` list in `src/lib/universes.ts`.
 - Titles and dates come from the payload (`name`, `session_date`).
 - Sectors are derived from the payload; `sector: null` → "Unclassified".
 - Nothing assumes equities: `asset_class` is displayed, not assumed; missing
@@ -379,6 +380,17 @@ stage.
 
 **Done when:** keyboard-only use reaches every control in list + drawer;
 toasts fire on 503s.
+
+---
+
+## Home page
+
+`/` is `HomeView` (it no longer redirects to `/spy/list`): a hero over an aerial
+city photo (Pexels, credited) under a white wash, how to read the town
+(footprint, height, colour), and a card per universe whose **View holdings**
+menu offers Town or List (shadcn `DropdownMenu`, same as the pickers), plus a
+"Your portfolio — coming soon" card for the roadmap. It loads no universe until
+one is chosen.
 
 ---
 
