@@ -14,7 +14,7 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Metric layer: complete.** 7 price-based metrics in `services/metrics/`, computed from a single Alpaca fetch. Full S&P 500 × 7 metrics ≈ 5s (fetch; the maths is ~0.2s). Preview with `uv run python -m stocktown metrics [TICKERS... | --spy]`. Verified: beta of VOO/IVV vs SPY ≈ 1.00.
 
-**Tests:** 91 backend (pytest, ~0.7s) + 154 frontend (Vitest), behavioural and mutation-checked.
+**Tests:** 95 backend (pytest, ~0.7s) + 154 frontend (Vitest), behavioural and mutation-checked.
 
 **Tooling: uv.** `uv sync` to set up, `uv run …` to run, `uv add [--dev] <pkg>` for dependencies. `uv.lock` pins versions and is committed. Dev dependencies live in `[dependency-groups] dev` in `pyproject.toml`.
 
@@ -105,8 +105,8 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 
 ## What's next (in order)
 
-1. **Deploy:** public URL (FastAPI serving the built frontend; keys server-side). Check Alpaca/Finnhub terms for public display first.
-2. **README as a landing page:** GIF, pitch, "Try it", architecture diagram, key decisions.
+1. **Deploy (Railway):** FastAPI serving the built frontend: done (`api/frontend.py`). Next: Dockerfile, Railway service (one replica, volume for SQLite, keys as variables). **Keep the URL private:** terms checked 2026-10-03, and neither provider allows redistribution (Finnhub: personal use only, no sharing of data "or derived results" without written approval; Alpaca: "you cannot redistribute Alpaca API data"). The user is emailing both for approval.
+2. **README as a landing page:** GIF, pitch, "Try it", architecture diagram, key decisions. Wait until the user is happy to show the app off. It's also the demo if approval is refused.
 3. **Depth feature — what-if builder with fund look-through** (Outline § Portfolios and import): curated funds + direct stocks, pro-rata funding, effective weights, overlap/concentration panel.
 4. **Provider parser tests** (optional, small): `extract_pe_ratio`, SPY workbook parsing, `normalise_ticker`.
 5. **Frontend deferred:** filter dimming, the rest of Phase 7, CSV export, portfolio columns, select rows → highlight in city.

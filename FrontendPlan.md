@@ -39,7 +39,7 @@ anything here disagrees), `README.md` (setup, commands), `StockTownOutline.md`
 | City | Treemap of treemaps (sector districts → holdings, padding = streets); one `InstancedMesh` of unit boxes; `MapControls`, polar clamp `[15°, 75°]`; colour = sector (fixed per GICS sector: a validated 8-hue colour-blind-safe set + cyan, brown, plum; grey = Unclassified); hover/select glow outline; top-down labels (ticker + weight). Route lazy-loaded so list-only visits never download Three.js |
 | Testing | Vitest + Testing Library; behavioural names; fakes injected, no `vi.mock`; every test mutation-verified; non-SPY fixture (`TEST_PORTFOLIO`) |
 | CI | One workflow: backend (uv, pytest) + frontend (schema drift, lint, Prettier, tests, build) |
-| Prod serving | Deferred until deployment; likely FastAPI serving `frontend/dist` same-origin with an `index.html` fallback for deep links |
+| Prod serving | FastAPI serves `frontend/dist` same-origin (`stocktown/api/frontend.py`): built files as themselves, other paths → `index.html` so deep links work, unknown `/api` paths stay 404. One Railway service; Vercel was considered but would make the API cross-origin and need an absolute WebSocket URL |
 
 ## Universe-agnostic by design
 

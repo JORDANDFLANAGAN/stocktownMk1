@@ -4,6 +4,7 @@ import logging
 import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Final
 
 from fastapi import FastAPI
@@ -12,6 +13,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from stocktown.api.dependencies import get_live_bar_hub, get_snapshot_service
 from stocktown.api.errors import register_error_handlers
+from stocktown.api.frontend import FRONTEND_DIST_DIR, SinglePageApp
 from stocktown.api.routes import instruments, live, metrics, universes
 from stocktown.config import get_cors_allowed_origins
 
@@ -22,7 +24,9 @@ GZIP_MINIMUM_BYTES: Final[int] = 1_000
 logger = logging.getLogger(__name__)
 
 
-def create_app(*, warm_on_startup: bool = True) -> FastAPI:
+def create_app(
+    *, warm_on_startup: bool = True, frontend_dir: Path | None = FRONTEND_DIST_DIR
+) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if warm_on_startup:
@@ -39,6 +43,12 @@ def create_app(*, warm_on_startup: bool = True) -> FastAPI:
     register_error_handlers(app)
     for route_module in (universes, metrics, instruments, live):
         app.include_router(route_module.router, prefix=API_PREFIX)
+    # Mounted last: the API routes above take precedence over the catch-all.
+    if frontend_dir is not None and frontend_dir.is_dir():
+        app.mount("/", SinglePageApp(directory=frontend_dir), name="frontend")
+    else:
+        # Normal in development, where Vite serves the frontend.
+        logger.info("No built frontend at %s; serving the API only", frontend_dir)
     return app
 
 

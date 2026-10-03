@@ -26,9 +26,10 @@ to make money. Reviewers spend minutes, so work is ranked by demo impact:
 | 4 | One feature with analytical depth | Fund look-through what-if builder (below) — data engineering + maths + a visual payoff |
 | 5 | Visible quality | CI badge, test counts, typed end to end, keyboard support |
 
-Skip business-only features (accounts, billing, tax reports). Before going public, check that the
-Alpaca and Finnhub free terms allow a public, non-commercial display; every visitor shares
-Finnhub's 60 calls/min and the single Alpaca WebSocket (both already cached/shared).
+Skip business-only features (accounts, billing, tax reports). Neither provider's free terms allow
+public display (checked 2026-10-03: no redistribution without written approval), so the site
+stays private until both approve; until then the README (GIF, video, run locally) is the demo.
+Every visitor shares Finnhub's 60 calls/min and the single Alpaca WebSocket (both already cached/shared).
 
 ## MVP scope
 
@@ -223,7 +224,7 @@ flowchart LR
 | UI overlay | Vue components; lil-gui while developing | Dropdowns, slider, tooltip, popup |
 | Animation | Tween between old and new values per frame | Smooth metric switches |
 | Containers | Docker + docker-compose | Same setup locally and deployed |
-| Hosting | Fly.io or Railway (backend), Cloudflare Pages (frontend) — TBD at deployment: FastAPI serving the frontend same-origin is also an option; the API is under `/api` either way | Cheap, one public link |
+| Hosting | Railway: one service, one replica, FastAPI serving the built frontend same-origin; volume for the SQLite snapshot store | User knows it; one replica matches Alpaca's single WebSocket |
 | CI | GitHub Actions: pytest; frontend schema drift, lint, Prettier, tests, build (ruff/mypy still to add) | Keeps the project shippable |
 | Secrets | Environment variables, `.env` locally | API keys never in the repo |
 
@@ -324,7 +325,7 @@ Each phase ends with something you can show someone; no phase starts until the p
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
 | Free API terms change or tighten | Live data stops | Provider interfaces; recorded replay keeps the demo working |
-| Data licensing | Redistributing exchange data publicly may breach terms | Read Alpaca and Finnhub terms before making the site public; show derived values, not raw feeds |
+| Data licensing | Both free tiers forbid redistribution, derived results included (Finnhub) | Written approval before going public; README demo meanwhile; switch off whichever part isn't approved |
 | SPY file URL or format changes | Daily job fails | Validate on load; keep the last good universe; iShares IVV as backup |
 | Performance on phones | Laggy city | Instancing, low-poly, cap pixel ratio, test on a mid-range phone early |
 | Scope creep | Never ships | Phase gates; nothing from phase 2+ enters the MVP |
