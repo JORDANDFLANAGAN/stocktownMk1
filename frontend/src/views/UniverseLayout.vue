@@ -3,6 +3,7 @@ import { computed, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 
 import { ApiError } from '@/api/client'
+import AppBrand from '@/components/AppBrand.vue'
 import { useUniverseStore } from '@/stores/universe'
 
 const route = useRoute()
@@ -20,8 +21,8 @@ watch(universeId, (id) => store.load(id), { immediate: true })
   <div class="flex h-screen flex-col">
     <!-- brand left, the universe on screen centred (the page's heading), views right -->
     <header class="grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b px-6 py-3">
-      <RouterLink to="/" class="justify-self-start text-2xl font-bold tracking-tight">
-        Stocktown
+      <RouterLink to="/" class="justify-self-start">
+        <AppBrand />
       </RouterLink>
       <div class="flex items-baseline gap-3">
         <h1 v-if="store.universe" class="text-base font-medium">{{ store.universe.name }}</h1>

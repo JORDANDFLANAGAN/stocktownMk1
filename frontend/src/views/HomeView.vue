@@ -10,6 +10,7 @@ import {
 import { RouterLink } from 'vue-router'
 
 import heroPhoto from '@/assets/home-hero.webp'
+import AppBrand from '@/components/AppBrand.vue'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,7 +43,7 @@ const VIEWS = [
   <div class="min-h-screen">
     <!-- same brand bar as the universe pages -->
     <header class="border-b px-6 py-3">
-      <span class="text-2xl font-bold tracking-tight">Stocktown</span>
+      <AppBrand />
     </header>
 
     <main>
