@@ -6,19 +6,15 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Final
 
-import httpx
-
 from stocktown.domain.markets import today_in_new_york
 from stocktown.domain.models import Fundamentals, TradableAsset
-from stocktown.exceptions import UpstreamUnavailableError
 from stocktown.providers.finnhub import load_ticker_fundamentals
 from stocktown.services.assets import AssetCatalogue
+from stocktown.services.upstream import reported_as_unavailable
 
 # Finnhub reports market cap in millions of USD and dividend yield as a percentage.
 USD_PER_MILLION: Final[float] = 1_000_000.0
 FRACTION_PER_PERCENT: Final[float] = 0.01
-DEFAULT_RETRY_AFTER_SECONDS: Final[int] = 60
-HTTP_TOO_MANY_REQUESTS: Final[int] = 429
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,22 +51,12 @@ class InstrumentService:
         if cached is not None and cached[0] == today:
             return cached[1]
 
-        detail = to_instrument_detail(asset, self._fetch_or_raise(asset.symbol))
+        with reported_as_unavailable("Finnhub"):
+            fundamentals = self._fetch_fundamentals(asset.symbol)
+        detail = to_instrument_detail(asset, fundamentals)
         with self._lock:
             self._details[asset.symbol] = (today, detail)
         return detail
-
-    def _fetch_or_raise(self, symbol: str) -> Fundamentals:
-        try:
-            return self._fetch_fundamentals(symbol)
-        except httpx.HTTPStatusError as error:
-            if error.response.status_code == HTTP_TOO_MANY_REQUESTS:
-                raise UpstreamUnavailableError(
-                    "Finnhub", retry_after_seconds=retry_after_seconds(error.response)
-                ) from error
-            raise UpstreamUnavailableError("Finnhub") from error
-        except httpx.HTTPError as error:
-            raise UpstreamUnavailableError("Finnhub") from error
 
 
 def to_instrument_detail(asset: TradableAsset, fundamentals: Fundamentals) -> InstrumentDetail:
@@ -88,7 +74,3 @@ def to_instrument_detail(asset: TradableAsset, fundamentals: Fundamentals) -> In
 def scaled(value: float | None, *, factor: float) -> float | None:
     return None if value is None else value * factor
 
-
-def retry_after_seconds(response: httpx.Response) -> int:
-    header = response.headers.get("Retry-After", "")
-    return int(header) if header.isdigit() else DEFAULT_RETRY_AFTER_SECONDS

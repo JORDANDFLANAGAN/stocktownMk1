@@ -13,7 +13,7 @@ export interface TickerCacheEntry<T> {
 /** A Pinia store of drawer data, fetched on a ticker's first click and cached per ticker. */
 export function defineTickerCacheStore<T>(
   id: string,
-  fetch: (api: Api, ticker: string) => Promise<T>,
+  fetchFor: (api: Api, ticker: string) => Promise<T>,
 ) {
   return defineStore(id, () => {
     const api = useApi()
@@ -34,7 +34,7 @@ export function defineTickerCacheStore<T>(
 
       entries.value.set(ticker, { loading: true, error: null, data: null })
       try {
-        const data = await fetch(api, ticker)
+        const data = await fetchFor(api, ticker)
         entries.value.set(ticker, { loading: false, error: null, data })
       } catch (caught) {
         entries.value.set(ticker, { loading: false, error: caught, data: null })

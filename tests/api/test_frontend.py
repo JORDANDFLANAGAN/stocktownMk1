@@ -36,3 +36,12 @@ def test_api_routes_take_precedence_over_the_app(client):
 
 def test_an_unknown_api_path_is_a_404_not_the_app(client):
     assert client.get("/api/no-such-endpoint").status_code == 404
+
+
+def test_a_missing_built_asset_is_a_404_not_the_app(client):
+    # e.g. an open tab asking for the previous deploy's lazily loaded Town code
+    assert client.get("/assets/CityView-oldhash.js").status_code == 404
+
+
+def test_the_app_page_is_revalidated_on_every_visit(client):
+    assert client.get("/spy/town").headers["cache-control"] == "no-cache"

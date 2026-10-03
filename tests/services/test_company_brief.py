@@ -172,8 +172,17 @@ def test_when_every_model_is_out_of_quota_the_brief_is_unavailable_with_retry_af
     assert raised.value.retry_after_seconds == 30
 
 
-def test_a_reply_missing_fields_is_reported_as_gemini_unavailable():
-    gemini = FakeGemini({"about": "Apple designs phones."})
+@pytest.mark.parametrize(
+    "reply",
+    [
+        {"about": "Apple designs phones."},  # fields missing
+        ["Apple designs phones."],  # not an object
+        {"about": "  ", "news": [], "article_numbers": []},  # nothing to say
+    ],
+    ids=["fields-missing", "not-an-object", "blank-about"],
+)
+def test_an_unusable_reply_is_reported_as_gemini_unavailable(reply):
+    gemini = FakeGemini(reply)
 
     with pytest.raises(UpstreamUnavailableError) as raised:
         build_service(news=FakeNews(stories(3)), gemini=gemini).get("AAPL")

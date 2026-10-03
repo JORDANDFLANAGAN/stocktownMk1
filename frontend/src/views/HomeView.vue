@@ -63,7 +63,7 @@ const VIEWS = [
           </p>
         </div>
         <p class="absolute right-3 bottom-2 text-xs text-foreground/70">
-          Photo: Nina Uhlíková / Pexels
+          Photo: Nina Uhlikova / Pexels
         </p>
       </section>
 

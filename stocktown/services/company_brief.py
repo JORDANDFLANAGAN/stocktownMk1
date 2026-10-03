@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from datetime import date
 from typing import Any, Final
 
@@ -16,7 +15,7 @@ from stocktown.persistence import BriefStore
 from stocktown.providers.finnhub import load_company_news
 from stocktown.providers.gemini import generate_json
 from stocktown.services.assets import AssetCatalogue
-from stocktown.services.instruments import HTTP_TOO_MANY_REQUESTS, retry_after_seconds
+from stocktown.services.upstream import HTTP_TOO_MANY_REQUESTS, reported_as_unavailable
 
 # Tried in order: the free tier's newest Flash is often overloaded (503); Flash-Lite rarely is.
 # Pinned versions, not "-latest" aliases, so a model can't change under us unannounced.
@@ -141,20 +140,6 @@ class CompanyBriefService:
         return stored
 
 
-@contextmanager
-def reported_as_unavailable(provider: str) -> Iterator[None]:
-    """Turns a provider's failure into UpstreamUnavailableError (a 503), keeping a rate limit's
-    Retry-After. An unreadable reply counts as a failure too."""
-    try:
-        yield
-    except httpx.HTTPStatusError as error:
-        rate_limited = error.response.status_code == HTTP_TOO_MANY_REQUESTS
-        retry_after = retry_after_seconds(error.response) if rate_limited else None
-        raise UpstreamUnavailableError(provider, retry_after_seconds=retry_after) from error
-    except (httpx.HTTPError, KeyError, IndexError, ValueError) as error:
-        raise UpstreamUnavailableError(provider) from error
-
-
 def is_overloaded_or_out_of_quota(error: httpx.HTTPStatusError) -> bool:
     status = error.response.status_code
     return status == HTTP_TOO_MANY_REQUESTS or status >= 500
@@ -171,12 +156,16 @@ def build_prompt(asset: TradableAsset, articles: list[NewsArticle]) -> str:
 
 
 def to_brief(
-    asset: TradableAsset, articles: list[NewsArticle], reply: dict[str, Any], *, model: str
+    asset: TradableAsset, articles: list[NewsArticle], reply: Any, *, model: str
 ) -> CompanyBrief:
     """Trusts the reply only as far as it can be checked: news needs articles, and sources are
     looked up by number in our own list, never taken from the model's text."""
+    if not isinstance(reply, dict):
+        raise UpstreamUnavailableError("Gemini")
     about, news, numbers = reply.get("about"), reply.get("news"), reply.get("article_numbers")
-    if not isinstance(about, str) or not isinstance(news, list) or not isinstance(numbers, list):
+    if not (isinstance(about, str) and about.strip()):
+        raise UpstreamUnavailableError("Gemini")
+    if not isinstance(news, list) or not isinstance(numbers, list):
         raise UpstreamUnavailableError("Gemini")
     cited = [
         number
