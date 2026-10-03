@@ -51,6 +51,17 @@ class NewsArticle:
 
 
 @dataclass(frozen=True, slots=True)
+class CompanyBrief:
+    """The popup's AI-written text for one ticker."""
+
+    ticker: str
+    about: str
+    news: tuple[str, ...]  # empty when there was no business news
+    sources: tuple[NewsArticle, ...]  # articles the news points rely on, from Finnhub's data
+    model: str
+
+
+@dataclass(frozen=True, slots=True)
 class MinuteBar:
     ticker: str
     minute_utc: datetime

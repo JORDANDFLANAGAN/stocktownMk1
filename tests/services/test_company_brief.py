@@ -1,4 +1,5 @@
 import random
+import sqlite3
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -6,6 +7,7 @@ import pytest
 
 from stocktown.domain.models import NewsArticle, TradableAsset
 from stocktown.exceptions import UpstreamUnavailableError
+from stocktown.persistence import BriefStore
 from stocktown.services.assets import AssetCatalogue
 from stocktown.services.company_brief import CompanyBriefService
 from tests.factories import FakeClock
@@ -70,14 +72,25 @@ class FakeGemini:
         return self.reply
 
 
+class BrokenStore:
+    """A store whose disk has gone bad: every read and write fails."""
+
+    def get(self, ticker, *, made_on):
+        raise sqlite3.OperationalError("disk I/O error")
+
+    def save(self, brief, *, made_on):
+        raise sqlite3.OperationalError("disk I/O error")
+
+
 def build_service(
-    *, news: FakeNews, gemini: FakeGemini, clock: FakeClock | None = None
+    *, news: FakeNews, gemini: FakeGemini, clock: FakeClock | None = None, store=None
 ) -> CompanyBriefService:
     return CompanyBriefService(
         assets=AssetCatalogue(assets_loader=lambda: [APPLE]),
         news_loader=news,
         generate=gemini,
         today=clock or FakeClock(),
+        store=store,
     )
 
 
@@ -154,3 +167,29 @@ def test_a_news_outage_is_reported_as_finnhub_unavailable_without_asking_gemini(
 
     assert raised.value.provider == "Finnhub"
     assert gemini.prompts == []
+
+
+def test_a_restart_on_the_same_day_serves_the_stored_brief_without_asking_gemini(tmp_path):
+    database_path = tmp_path / "stocktown.sqlite3"
+    before_restart, after_restart = FakeGemini(), FakeGemini()
+    brief = build_service(
+        news=FakeNews(stories(3)), gemini=before_restart, store=BriefStore(database_path)
+    ).get("AAPL")
+
+    restarted = build_service(
+        news=FakeNews(stories(3)), gemini=after_restart, store=BriefStore(database_path)
+    )
+
+    assert restarted.get("AAPL") == brief
+    assert after_restart.prompts == []
+
+
+def test_a_store_that_cannot_be_read_or_written_still_serves_briefs():
+    gemini = FakeGemini()
+    service = build_service(news=FakeNews(stories(3)), gemini=gemini, store=BrokenStore())
+
+    brief = service.get("AAPL")
+
+    assert brief.about == APPLE_REPLY["about"]
+    assert service.get("AAPL") is brief
+    assert len(gemini.prompts) == 1

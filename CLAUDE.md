@@ -14,7 +14,7 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Metric layer: complete.** 7 price-based metrics in `services/metrics/`, computed from a single Alpaca fetch. Full S&P 500 × 7 metrics ≈ 5s (fetch; the maths is ~0.2s). Preview with `uv run python -m stocktown metrics [TICKERS... | --spy]`. Verified: beta of VOO/IVV vs SPY ≈ 1.00.
 
-**Tests:** 107 backend (pytest, ~0.7s) + 156 frontend (Vitest), behavioural and mutation-checked.
+**Tests:** 112 backend (pytest, ~0.7s) + 156 frontend (Vitest), behavioural and mutation-checked.
 
 **Tooling: uv.** `uv sync` to set up, `uv run …` to run, `uv add [--dev] <pkg>` for dependencies. `uv.lock` pins versions and is committed. Dev dependencies live in `[dependency-groups] dev` in `pyproject.toml`.
 
@@ -27,6 +27,8 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 **Frontend: MVP done** — Vue 3 + TypeScript + Vite in `frontend/`, following `FrontendPlan.md` (phased plan + global decisions; read it before frontend work). Phases 0–6 complete: typed API client, stores, routes, list (sort, sector/search filters, column picker), drawer (live price, metrics, fundamentals) and the Three.js town (height picker, sector colours, 3D / top-down, hover glow + tooltip, click → drawer, labels + legend); filter dimming deferred. Phase 7: keyboard navigation for the list only (one tab stop, arrow keys, focus back on drawer close); the rest (toasts, live-region price, empty states, favicon) set aside as low value at this stage. Home page at `/`: pitch, how to read the town, universe cards with a Town / List menu.
 
 **Persistence (phase 1): done.** `persistence/SnapshotStore`: each built snapshot stored in SQLite (`data/stocktown.sqlite3`, `STOCKTOWN_DB_PATH` overrides; last 7 days kept). Measured against a real server: first request after a restart 9.4s → 0.004s; on a new day the first request is instant with yesterday's prices and today's arrive once the background rebuild lands.
+
+**Persistence phase 1b: `BriefStore`**, today's AI briefs (one day kept), in the same SQLite file, so a restart or `--reload` doesn't spend the Gemini quota again (measured: 7.9s → 1.0s, the rest being the cold asset list).
 
 **To re-check during US market hours:** whether Alpaca's free-tier latest-bar endpoint is real-time on IEX or 15-min delayed (pre-market it correctly returns the previous close). If delayed, label the popup's first price.
 

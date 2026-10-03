@@ -5,7 +5,7 @@ from functools import lru_cache
 
 from stocktown.config import get_database_path
 from stocktown.domain.models import MinuteBar
-from stocktown.persistence import SnapshotStore
+from stocktown.persistence import BriefStore, SnapshotStore
 from stocktown.providers.alpaca import load_latest_bar
 from stocktown.services.assets import AssetCatalogue
 from stocktown.services.company_brief import CompanyBriefService
@@ -37,7 +37,9 @@ def get_instrument_service() -> InstrumentService:
 
 @lru_cache(maxsize=1)
 def get_company_brief_service() -> CompanyBriefService:
-    return CompanyBriefService(assets=get_asset_catalogue())
+    return CompanyBriefService(
+        assets=get_asset_catalogue(), store=BriefStore(get_database_path())
+    )
 
 
 @lru_cache(maxsize=1)
