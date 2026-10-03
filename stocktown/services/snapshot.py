@@ -5,10 +5,10 @@ import math
 import threading
 import time
 from collections.abc import Callable, Mapping
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Final
 
-from stocktown.domain.markets import US_MARKET_TIMEZONE
+from stocktown.domain.markets import today_in_new_york
 from stocktown.domain.models import Holding, UniverseSnapshot
 from stocktown.exceptions import UnknownUniverseError, UpstreamUnavailableError
 from stocktown.persistence import SnapshotStore
@@ -22,10 +22,6 @@ RETRY_FAILED_BUILD_AFTER_SECONDS: Final[int] = 300
 logger = logging.getLogger(__name__)
 
 UniverseLoader = Callable[[], list[Holding]]
-
-
-def today_in_new_york() -> date:
-    return datetime.now(US_MARKET_TIMEZONE).date()
 
 
 def start_daemon_thread(job: Callable[[], None]) -> None:

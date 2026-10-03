@@ -32,6 +32,14 @@ class FinnhubCredentials:
 
 
 @dataclass(frozen=True, slots=True)
+class GeminiCredentials:
+    api_key: str
+
+    def __repr__(self) -> str:
+        return "GeminiCredentials(api_key='***')"
+
+
+@dataclass(frozen=True, slots=True)
 class Settings:
     alpaca: AlpacaCredentials
     finnhub: FinnhubCredentials
@@ -51,6 +59,13 @@ def get_settings() -> Settings:
             api_key=require_env("FINNHUB_API_KEY"),
         ),
     )
+
+
+@lru_cache(maxsize=1)
+def get_gemini_credentials() -> GeminiCredentials:
+    """Kept apart from get_settings(): without a Gemini key only the AI brief fails."""
+    load_dotenv()
+    return GeminiCredentials(api_key=require_env("GEMINI_API_KEY"))
 
 
 def get_cors_allowed_origins() -> tuple[str, ...]:

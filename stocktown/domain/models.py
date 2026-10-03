@@ -42,6 +42,15 @@ class Fundamentals:
 
 
 @dataclass(frozen=True, slots=True)
+class NewsArticle:
+    headline: str
+    summary: str
+    source: str
+    url: str
+    published_at: datetime  # UTC
+
+
+@dataclass(frozen=True, slots=True)
 class MinuteBar:
     ticker: str
     minute_utc: datetime

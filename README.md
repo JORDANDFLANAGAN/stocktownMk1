@@ -40,12 +40,14 @@ uv sync            # creates .venv, installs runtime + dev dependencies pinned b
 #   ALPACA_API_KEY=...
 #   ALPACA_API_SECRET=...
 #   FINNHUB_API_KEY=...
+#   GEMINI_API_KEY=...
 ```
 
 Add a dependency with `uv add <package>` (or `uv add --dev <package>` for test/dev tools); this updates both `pyproject.toml` and `uv.lock`. Commit `uv.lock`.
 
 - Alpaca paper-trading keys: <https://app.alpaca.markets/paper/dashboard/overview>
 - Finnhub free API key: <https://finnhub.io/dashboard>
+- Gemini free API key: <https://aistudio.google.com/apikey> (only the AI brief needs it)
 
 ## API server
 
@@ -62,6 +64,7 @@ Every endpoint lives under `/api`; the design notes below omit the prefix.
 | `GET /api/universes/spy` | Every position: ticker, name, sector, `asset_class`, weight (fraction, sums to 1.0), and all metric values (`null` = no data). ~53 KB gzipped |
 | `GET /api/metrics` | Metric catalogue for the dropdowns: key, label, unit, scale, refresh — in display order |
 | `GET /api/instruments/{ticker}` | Popup detail: P/E, market cap (USD), dividend yield and earnings yield (fractions). Finnhub, cached per ticker per day |
+| `GET /api/instruments/{ticker}/brief` | Popup AI brief: `about` (2–3 sentences), `news` (up to 4 points from the past week's Finnhub headlines), `sources` (the articles those points rely on) and `model`. Gemini, ~6s, cached per ticker per New York day |
 | `WS /api/live?ticker={ticker}` | Popup price feed: the latest bar immediately (last close when the market is shut), then each new minute bar as JSON `{"type": "bar", "ticker", "minute_utc", "open", "high", "low", "close", "volume"}`. Unknown ticker → closed with code `4404` |
 
 Any ticker spelling works (`BRK.B`, `brk-b`, `BRK/B`). Alpaca's free tier allows one WebSocket connection, so every popup shares it through `LiveBarHub`: a ticker is subscribed upstream when its first popup opens and unsubscribed when the last one closes; the connection opens on demand, closes after 60s with no viewers, and reconnects (re-subscribing) if it drops.

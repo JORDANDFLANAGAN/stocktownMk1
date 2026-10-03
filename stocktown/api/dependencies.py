@@ -8,6 +8,7 @@ from stocktown.domain.models import MinuteBar
 from stocktown.persistence import SnapshotStore
 from stocktown.providers.alpaca import load_latest_bar
 from stocktown.services.assets import AssetCatalogue
+from stocktown.services.company_brief import CompanyBriefService
 from stocktown.services.instruments import InstrumentService
 from stocktown.services.live import LiveBarHub
 from stocktown.services.snapshot import SnapshotService
@@ -32,6 +33,11 @@ def get_asset_catalogue() -> AssetCatalogue:
 @lru_cache(maxsize=1)
 def get_instrument_service() -> InstrumentService:
     return InstrumentService(assets=get_asset_catalogue())
+
+
+@lru_cache(maxsize=1)
+def get_company_brief_service() -> CompanyBriefService:
+    return CompanyBriefService(assets=get_asset_catalogue())
 
 
 @lru_cache(maxsize=1)

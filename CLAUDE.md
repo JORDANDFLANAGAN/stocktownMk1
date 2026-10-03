@@ -14,7 +14,7 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 
 **Metric layer: complete.** 7 price-based metrics in `services/metrics/`, computed from a single Alpaca fetch. Full S&P 500 × 7 metrics ≈ 5s (fetch; the maths is ~0.2s). Preview with `uv run python -m stocktown metrics [TICKERS... | --spy]`. Verified: beta of VOO/IVV vs SPY ≈ 1.00.
 
-**Tests:** 95 backend (pytest, ~0.7s) + 156 frontend (Vitest), behavioural and mutation-checked.
+**Tests:** 107 backend (pytest, ~0.7s) + 156 frontend (Vitest), behavioural and mutation-checked.
 
 **Tooling: uv.** `uv sync` to set up, `uv run …` to run, `uv add [--dev] <pkg>` for dependencies. `uv.lock` pins versions and is committed. Dev dependencies live in `[dependency-groups] dev` in `pyproject.toml`.
 
@@ -39,6 +39,8 @@ A 3D city visualisation of a stock index or portfolio where each holding is a bu
 | Alpaca WebSocket | `providers/alpaca/stream.py` | live minute bars for detail popup |
 | Alpaca `/v2/assets` | `providers/alpaca/assets.py` | ticker catalogue + normalisation |
 | Finnhub REST | `providers/finnhub/fundamentals.py` | P/E, market cap, dividend yield — **stock-detail popup only**, fetched on click |
+| Finnhub company news | `providers/finnhub/news.py` | headlines for the AI brief |
+| Gemini | `providers/gemini/client.py` | AI company brief — drawer only, on click |
 
 Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `config.py`.
 
@@ -55,6 +57,7 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 - **No premature abstractions.** No `PriceProvider`/`ReferenceProvider` `Protocol` interfaces yet — we have exactly one implementation of each. Added when a second implementation arrives (Phase 3, European provider). Same reasoning for custom exceptions and the DB layer.
 - **Concurrent fetching, capped at 4.** Alpaca bar batches and the 11 SSGA sector workbooks are independent requests, so they're fetched side by side via `ThreadPoolExecutor` (`MAX_CONCURRENT_BATCHES`, `MAX_CONCURRENT_DOWNLOADS`): cold snapshot build ~30s → ~10s, identical data, same request count (Alpaca free tier: 200/min). The stored snapshot now hides the cold build except on the very first run.
 - **Persistence: stdlib `sqlite3`, no ORM.** One table, snapshot as a JSON payload (always read and written whole); one short-lived connection per call (thread-safe without locking); `CREATE TABLE IF NOT EXISTS` until the first schema change needs `PRAGMA user_version` migrations. The store is a cache: read/write failures are logged, never raised. `UniverseSnapshot` lives in `domain/` so persistence and services don't import each other. The background rebuild runner is injected (`run_in_background`) so tests run it deterministically.
+- **AI brief = Finnhub headlines summarised by Gemini** (structured JSON reply). The model never supplies links: sources are looked up by article number in our own list; news points are dropped when there were no articles. Cached per ticker per New York day. Free tier: Google may use prompts (public news only); in the UK/EU/CH the deployed version needs the paid tier. The Gemini key is read apart from `Settings`, so without it only the brief fails.
 - **Finnhub rate-limited via `time.sleep(1.1)` between calls.** Naïve but sufficient now that Finnhub is only called per clicked stock. Not extracted to a shared rate-limiter until a second rate-limited API needs one.
 - **Two frontend views, one state.** A Three.js city and a sortable/filterable list, both rendering the same state: two Pinia stores (universe, fundamentals) and a live-bar composable, plus the URL (sort, filters, metric picks, selected ticker). Filters are shared (list filter dims/hides buildings); sort is list-only. Both open the same popup. Rows never stream — realtime stays popup-only. List is built first: quicker, and it verifies the data path and the numbers the city renders.
 - **Vue 3, not React or Angular.** User knows Angular and doesn't want it; Vue's templates and `ref`/`computed` map closely to Angular, and `watch()` fits imperative Three.js updates better than React's re-render model. Three.js is plain imperative code in one component (no TresJS/R3F-style wrapper). Table: TanStack Table v9 — sorting and rendering; filtering is our own shared pure function.
@@ -101,6 +104,7 @@ Shared HTTP factory: `providers/alpaca/client.py`. Credentials + settings: `conf
 
 - **Alpaca**: IEX feed only on free. Absolute volumes are ~2-3% of true — use ratios only. Paper trading URL is `https://paper-api.alpaca.markets` (not `https://api.alpaca.markets` — that's live). Daily bars are batched 100 symbols/request — full S&P in a few seconds.
 - **Finnhub**: 60 calls/min, US only, no bulk endpoint. Reported `marketCapitalization` is in **millions of USD**.
+- **Gemini**: free tier is Flash models only (`gemini-3.8-flash` works); limits change, so check AI Studio. ~6s per brief including the Finnhub news call.
 - **SPY file**: free, no auth, but URL/format could change silently — parser is defensive but not bulletproof.
 
 ## What's next (in order)

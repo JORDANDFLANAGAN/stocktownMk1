@@ -45,6 +45,23 @@ class InstrumentResponse(BaseModel):
     earnings_yield: float | None
 
 
+class NewsSourceResponse(BaseModel):
+    headline: str
+    source: str  # publisher, e.g. "CNBC"
+    url: str  # always https
+    published_at: datetime  # UTC
+
+
+class BriefResponse(BaseModel):
+    """AI-written popup text; the frontend labels it as AI-generated and names the model."""
+
+    ticker: str
+    about: str
+    news: list[str]  # empty when there was no business news this week
+    sources: list[NewsSourceResponse]  # the articles the news points rely on
+    model: str  # e.g. "gemini-3.8-flash"
+
+
 class LiveBarMessage(BaseModel):
     """One minute of trading for the popup; `type` leaves room for status messages later."""
 

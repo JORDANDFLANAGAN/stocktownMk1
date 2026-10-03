@@ -8,6 +8,7 @@ from typing import Final
 
 import httpx
 
+from stocktown.domain.markets import today_in_new_york
 from stocktown.domain.models import Fundamentals, TradableAsset
 from stocktown.exceptions import UpstreamUnavailableError
 from stocktown.providers.finnhub import load_ticker_fundamentals
@@ -38,7 +39,7 @@ class InstrumentService:
         *,
         assets: AssetCatalogue,
         fundamentals_fetcher: Callable[[str], Fundamentals] = load_ticker_fundamentals,
-        today: Callable[[], date] = date.today,
+        today: Callable[[], date] = today_in_new_york,
     ) -> None:
         self._assets = assets
         self._fetch_fundamentals = fundamentals_fetcher

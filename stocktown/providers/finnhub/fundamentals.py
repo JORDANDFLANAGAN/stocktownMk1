@@ -5,16 +5,13 @@ from typing import Any, Final
 
 import httpx
 
-from stocktown.config import get_settings
 from stocktown.domain.models import Fundamentals
+from stocktown.providers.finnhub.client import build_client
 
-FINNHUB_BASE_URL: Final[str] = "https://finnhub.io/api/v1"
 STOCK_METRIC_ENDPOINT: Final[str] = "/stock/metric"
 
 # Free tier caps requests at 60/min. 1.1s spacing keeps us well below the limit under jitter.
 SECONDS_BETWEEN_REQUESTS: Final[float] = 1.1
-
-DEFAULT_REQUEST_TIMEOUT_SECONDS: Final[float] = 30.0
 
 # Finnhub exposes several P/E variants; use the first numeric one present in the response.
 PE_CANDIDATE_FIELDS: Final[tuple[str, ...]] = (
@@ -42,15 +39,6 @@ def load_ticker_fundamentals(ticker: str) -> Fundamentals:
     """Fetch one ticker's fundamentals — for on-demand requests, so no rate-limit sleep."""
     with build_client() as client:
         return fetch_fundamentals(client, ticker=ticker)
-
-
-def build_client() -> httpx.Client:
-    credentials = get_settings().finnhub
-    return httpx.Client(
-        base_url=FINNHUB_BASE_URL,
-        headers={"X-Finnhub-Token": credentials.api_key},
-        timeout=DEFAULT_REQUEST_TIMEOUT_SECONDS,
-    )
 
 
 def fetch_fundamentals(client: httpx.Client, *, ticker: str) -> Fundamentals:

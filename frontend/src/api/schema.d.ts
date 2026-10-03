@@ -58,10 +58,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/instruments/{ticker}/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Company Brief */
+        get: operations["get_company_brief_api_instruments__ticker__brief_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * BriefResponse
+         * @description AI-written popup text; the frontend labels it as AI-generated and names the model.
+         */
+        BriefResponse: {
+            /** Ticker */
+            ticker: string;
+            /** About */
+            about: string;
+            /** News */
+            news: string[];
+            /** Sources */
+            sources: components["schemas"]["NewsSourceResponse"][];
+            /** Model */
+            model: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -93,6 +126,20 @@ export interface components {
             refresh: components["schemas"]["Refresh"];
             /** Signed */
             signed: boolean;
+        };
+        /** NewsSourceResponse */
+        NewsSourceResponse: {
+            /** Headline */
+            headline: string;
+            /** Source */
+            source: string;
+            /** Url */
+            url: string;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
         };
         /** PositionResponse */
         PositionResponse: {
@@ -234,6 +281,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstrumentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_company_brief_api_instruments__ticker__brief_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BriefResponse"];
                 };
             };
             /** @description Validation Error */

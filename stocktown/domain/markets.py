@@ -14,6 +14,11 @@ def to_us_market_time(instant: datetime) -> datetime:
     return instant.astimezone(US_MARKET_TIMEZONE)
 
 
+def today_in_new_york() -> date:
+    """Today on New York's clock: when the US trading day, and our daily caches, roll over."""
+    return datetime.now(US_MARKET_TIMEZONE).date()
+
+
 def us_session_date(instant: datetime) -> date:
     """The US trading day an instant belongs to (its New York calendar date)."""
     return to_us_market_time(instant).date()
