@@ -6,6 +6,7 @@ export type Universe = components['schemas']['UniverseResponse']
 export type Position = components['schemas']['PositionResponse']
 export type MetricInfo = components['schemas']['MetricInfoResponse']
 export type Instrument = components['schemas']['InstrumentResponse']
+export type Brief = components['schemas']['BriefResponse']
 
 /**
  * What the app needs from the backend. Stores depend on this, so tests can hand them a plain fake.
@@ -15,6 +16,7 @@ export interface Api {
   fetchUniverse(universeId: string): Promise<Universe>
   fetchMetrics(): Promise<MetricInfo[]>
   fetchInstrument(ticker: string): Promise<Instrument>
+  fetchBrief(ticker: string): Promise<Brief>
 }
 
 /** A request the backend answered with an error: 404 = unknown universe/ticker, 503 = data provider down. */
@@ -53,6 +55,13 @@ export function createApi({ baseUrl = '', fetch = globalThis.fetch }: ApiOptions
 
     async fetchInstrument(ticker) {
       const { data, response } = await client.GET('/api/instruments/{ticker}', {
+        params: { path: { ticker } },
+      })
+      return dataOrThrow(data, response)
+    },
+
+    async fetchBrief(ticker) {
+      const { data, response } = await client.GET('/api/instruments/{ticker}/brief', {
         params: { path: { ticker } },
       })
       return dataOrThrow(data, response)

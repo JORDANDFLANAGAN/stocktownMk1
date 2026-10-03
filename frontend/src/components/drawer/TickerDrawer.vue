@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { useLiveBar } from '@/composables/useLiveBar'
 import { useUniverseStore } from '@/stores/universe'
+import BriefSection from './BriefSection.vue'
 import CityMetricsSection from './CityMetricsSection.vue'
 import DrawerHeader from './DrawerHeader.vue'
 import FundamentalsSection from './FundamentalsSection.vue'
@@ -56,6 +57,7 @@ function close(): void {
           :session-date="store.universe?.session_date ?? null"
         />
         <FundamentalsSection :ticker="ticker" />
+        <BriefSection :ticker="ticker" />
       </div>
     </SheetContent>
   </Sheet>

@@ -9,7 +9,7 @@ import { OPEN_SOCKET_KEY, type OpenSocket } from '@/composables/useLiveBar'
 import { createAppRouter } from '@/router'
 import { fakeApi } from './fakeApi'
 import { recordingSockets } from './fakeSocket'
-import { TEST_CATALOGUE, TEST_INSTRUMENT, TEST_PORTFOLIO } from './fixtures'
+import { TEST_BRIEF, TEST_CATALOGUE, TEST_INSTRUMENT, TEST_PORTFOLIO } from './fixtures'
 
 /**
  * Renders the whole app at a URL, wired like main.ts but with memory history, the given Api and
@@ -32,7 +32,7 @@ export async function renderAppAt(
 }
 
 /**
- * An Api serving TEST_PORTFOLIO, TEST_CATALOGUE and AAA's fundamentals (other tickers: 404),
+ * An Api serving TEST_PORTFOLIO, TEST_CATALOGUE and AAA's fundamentals and brief (other tickers: 404),
  * recording which universes were requested.
  */
 export function testPortfolioApi() {
@@ -46,6 +46,10 @@ export function testPortfolioApi() {
     fetchInstrument: async (ticker) => {
       if (ticker !== TEST_INSTRUMENT.ticker) throw new ApiError(404, null)
       return TEST_INSTRUMENT
+    },
+    fetchBrief: async (ticker) => {
+      if (ticker !== TEST_BRIEF.ticker) throw new ApiError(404, null)
+      return TEST_BRIEF
     },
   })
   return { api, requestedUniverses }

@@ -14,9 +14,13 @@ from stocktown.domain.models import CompanyBrief, NewsArticle, TradableAsset
 from stocktown.exceptions import UpstreamUnavailableError
 from stocktown.persistence import BriefStore
 from stocktown.providers.finnhub import load_company_news
-from stocktown.providers.gemini import GEMINI_MODEL, generate_json
+from stocktown.providers.gemini import generate_json
 from stocktown.services.assets import AssetCatalogue
 from stocktown.services.instruments import HTTP_TOO_MANY_REQUESTS, retry_after_seconds
+
+# Tried in order: the free tier's newest Flash is often overloaded (503); Flash-Lite rarely is.
+# Pinned versions, not "-latest" aliases, so a model can't change under us unannounced.
+GEMINI_MODELS: Final[tuple[str, ...]] = ("gemini-3.8-flash", "gemini-3.1-flash-lite")
 
 MAX_ARTICLES_IN_PROMPT: Final[int] = 20
 MAX_NEWS_POINTS: Final[int] = 4
@@ -82,15 +86,33 @@ class CompanyBriefService:
         newest = sorted(articles, key=lambda article: article.published_at, reverse=True)
         newest = newest[:MAX_ARTICLES_IN_PROMPT]
         with reported_as_unavailable("Gemini"):
-            reply = self._generate(
+            model, reply = self._generate_with_fallback(
                 system_instruction=SYSTEM_INSTRUCTION,
                 prompt=build_prompt(asset, newest),
                 response_schema=RESPONSE_SCHEMA,
             )
 
-        brief = to_brief(asset, newest, reply)
+        brief = to_brief(asset, newest, reply, model=model)
         self._keep(brief, today)
         return brief
+
+    def _generate_with_fallback(self, **request: Any) -> tuple[str, dict[str, Any]]:
+        """The first model that answers, and its reply. Overloaded (5xx) or out of quota (429):
+        the next model, since free-tier quotas are per model. Any other error: no point."""
+        *earlier_models, last_model = GEMINI_MODELS
+        for model in earlier_models:
+            try:
+                return model, self._generate(model=model, **request)
+            except httpx.HTTPStatusError as error:
+                if not is_overloaded_or_out_of_quota(error):
+                    raise
+                logger.warning(
+                    "Gemini %s unavailable (HTTP %s); trying %s",
+                    model,
+                    error.response.status_code,
+                    last_model,
+                )
+        return last_model, self._generate(model=last_model, **request)
 
     def _keep(self, brief: CompanyBrief, today: date) -> None:
         """Serve it for the rest of the day, and store it for the next restart."""
@@ -133,6 +155,11 @@ def reported_as_unavailable(provider: str) -> Iterator[None]:
         raise UpstreamUnavailableError(provider) from error
 
 
+def is_overloaded_or_out_of_quota(error: httpx.HTTPStatusError) -> bool:
+    status = error.response.status_code
+    return status == HTTP_TOO_MANY_REQUESTS or status >= 500
+
+
 def build_prompt(asset: TradableAsset, articles: list[NewsArticle]) -> str:
     lines = [f"Company: {asset.name} ({asset.symbol})", ""]
     if not articles:
@@ -144,7 +171,7 @@ def build_prompt(asset: TradableAsset, articles: list[NewsArticle]) -> str:
 
 
 def to_brief(
-    asset: TradableAsset, articles: list[NewsArticle], reply: dict[str, Any]
+    asset: TradableAsset, articles: list[NewsArticle], reply: dict[str, Any], *, model: str
 ) -> CompanyBrief:
     """Trusts the reply only as far as it can be checked: news needs articles, and sources are
     looked up by number in our own list, never taken from the model's text."""
@@ -161,5 +188,5 @@ def to_brief(
         about=about.strip(),
         news=tuple(str(point) for point in news[:MAX_NEWS_POINTS]) if articles else (),
         sources=tuple(articles[number - 1] for number in cited[:MAX_SOURCES]),
-        model=GEMINI_MODEL,
+        model=model,
     )

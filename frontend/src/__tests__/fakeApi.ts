@@ -13,6 +13,7 @@ export function fakeApi(methods: Partial<Api>): Api {
     fetchUniverse: methods.fetchUniverse ?? notUsedByThisTest('fetchUniverse'),
     fetchMetrics: methods.fetchMetrics ?? notUsedByThisTest('fetchMetrics'),
     fetchInstrument: methods.fetchInstrument ?? notUsedByThisTest('fetchInstrument'),
+    fetchBrief: methods.fetchBrief ?? notUsedByThisTest('fetchBrief'),
   }
 }
 

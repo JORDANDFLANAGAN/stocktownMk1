@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { computed, onScopeDispose, watch } from 'vue'
+import { computed } from 'vue'
 
 import { ApiError, type Instrument } from '@/api/client'
 import { Button } from '@/components/ui/button'
+import { useLoadWhenSettled } from '@/composables/useLoadWhenSettled'
 import { formatCompactMoney, formatOrDash, formatPercent, formatRatio } from '@/lib/format'
 import { useFundamentalsStore } from '@/stores/fundamentals'
-
-/** Wait this long on a ticker before asking Finnhub (60 calls/min), so flicking through rows is free. */
-const FETCH_AFTER_MS = 300
 
 const props = defineProps<{ ticker: string }>()
 
@@ -36,16 +34,8 @@ function rowsFor(instrument: Instrument): { label: string; value: string }[] {
   ]
 }
 
-let pendingFetch: ReturnType<typeof setTimeout> | undefined
-watch(
-  () => props.ticker,
-  (ticker) => {
-    clearTimeout(pendingFetch)
-    pendingFetch = setTimeout(() => store.load(ticker), FETCH_AFTER_MS)
-  },
-  { immediate: true },
-)
-onScopeDispose(() => clearTimeout(pendingFetch)) // closed before settling: nothing is fetched
+// Finnhub allows 60 calls/min: only the ticker the drawer settles on is fetched
+useLoadWhenSettled(() => props.ticker, store.load)
 </script>
 
 <template>

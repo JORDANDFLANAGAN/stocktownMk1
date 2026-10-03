@@ -21,7 +21,7 @@ RECALL_STORY = NewsArticle(
 )
 
 
-def generate_apple_brief(*, system_instruction, prompt, response_schema) -> dict:
+def generate_apple_brief(*, model, system_instruction, prompt, response_schema) -> dict:
     return {
         "about": "Apple designs and sells iPhones, Macs and services.",
         "news": ["Apple is replacing some iPhones after a service-loss bug."],

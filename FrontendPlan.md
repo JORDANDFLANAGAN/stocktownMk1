@@ -394,6 +394,16 @@ one is chosen.
 
 ---
 
+## AI brief (drawer)
+
+`BriefSection` under Fundamentals: about, news points, source links (new tab)
+and an AI disclaimer naming the model; loading / no news / unavailable + Retry /
+not found. Shares `defineTickerCacheStore` (per-ticker cache, retries failures)
+and `useLoadWhenSettled` (300ms settle) with Fundamentals. AI text is only
+interpolated, never `v-html`.
+
+---
+
 ## Not in this plan
 
 - **E2E tests (Playwright)** — until the list and drawer are stable

@@ -9,7 +9,7 @@ from stocktown.domain.models import NewsArticle, TradableAsset
 from stocktown.exceptions import UpstreamUnavailableError
 from stocktown.persistence import BriefStore
 from stocktown.services.assets import AssetCatalogue
-from stocktown.services.company_brief import CompanyBriefService
+from stocktown.services.company_brief import GEMINI_MODELS, CompanyBriefService
 from tests.factories import FakeClock
 
 APPLE = TradableAsset(
@@ -42,10 +42,18 @@ def stories(count: int) -> list[NewsArticle]:
     return articles
 
 
-def rate_limited(url: str) -> httpx.HTTPStatusError:
-    request = httpx.Request("POST", url)
-    response = httpx.Response(429, headers={"Retry-After": "30"}, request=request)
-    return httpx.HTTPStatusError("Too Many Requests", request=request, response=response)
+def http_error(status: int, *, headers: dict[str, str] | None = None) -> httpx.HTTPStatusError:
+    request = httpx.Request("POST", "https://generativelanguage.googleapis.com")
+    response = httpx.Response(status, headers=headers, request=request)
+    return httpx.HTTPStatusError(f"HTTP {status}", request=request, response=response)
+
+
+def rate_limited() -> httpx.HTTPStatusError:
+    return http_error(429, headers={"Retry-After": "30"})
+
+
+def overloaded() -> httpx.HTTPStatusError:
+    return http_error(503)
 
 
 class FakeNews:
@@ -60,15 +68,29 @@ class FakeNews:
 
 
 class FakeGemini:
-    def __init__(self, reply: dict | None = None, *, error: Exception | None = None) -> None:
+    """Answers `reply`; fails with `error` for every model, or per model with `errors`."""
+
+    def __init__(
+        self,
+        reply: dict | None = None,
+        *,
+        error: Exception | None = None,
+        errors: dict[str, Exception] | None = None,
+    ) -> None:
         self.reply = APPLE_REPLY if reply is None else reply
+        self.errors = errors or {}
         self.error = error
         self.prompts: list[str] = []
+        self.models_asked: list[str] = []
 
-    def __call__(self, *, system_instruction: str, prompt: str, response_schema: dict) -> dict:
+    def __call__(
+        self, *, model: str, system_instruction: str, prompt: str, response_schema: dict
+    ) -> dict:
         self.prompts.append(prompt)
-        if self.error is not None:
-            raise self.error
+        self.models_asked.append(model)
+        error = self.errors.get(model, self.error)
+        if error is not None:
+            raise error
         return self.reply
 
 
@@ -139,12 +161,13 @@ def test_a_brief_is_generated_once_per_ticker_per_new_york_day():
     assert len(gemini.prompts) == 2
 
 
-def test_a_gemini_rate_limit_is_unavailable_with_retry_after():
-    gemini = FakeGemini(error=rate_limited("https://generativelanguage.googleapis.com"))
+def test_when_every_model_is_out_of_quota_the_brief_is_unavailable_with_retry_after():
+    gemini = FakeGemini(error=rate_limited())
 
     with pytest.raises(UpstreamUnavailableError) as raised:
         build_service(news=FakeNews(stories(3)), gemini=gemini).get("AAPL")
 
+    assert gemini.models_asked == list(GEMINI_MODELS)  # quotas are per model
     assert raised.value.provider == "Gemini"
     assert raised.value.retry_after_seconds == 30
 
@@ -193,3 +216,33 @@ def test_a_store_that_cannot_be_read_or_written_still_serves_briefs():
     assert brief.about == APPLE_REPLY["about"]
     assert service.get("AAPL") is brief
     assert len(gemini.prompts) == 1
+
+
+def test_an_overloaded_model_falls_back_and_the_brief_names_the_model_that_answered():
+    first_choice, fallback = GEMINI_MODELS
+    gemini = FakeGemini(errors={first_choice: overloaded()})
+
+    brief = build_service(news=FakeNews(stories(3)), gemini=gemini).get("AAPL")
+
+    assert gemini.models_asked == [first_choice, fallback]
+    assert brief.model == fallback
+    assert brief.about == APPLE_REPLY["about"]
+
+
+def test_when_every_model_is_overloaded_the_brief_is_unavailable():
+    gemini = FakeGemini(error=overloaded())
+
+    with pytest.raises(UpstreamUnavailableError) as raised:
+        build_service(news=FakeNews(stories(3)), gemini=gemini).get("AAPL")
+
+    assert raised.value.provider == "Gemini"
+    assert gemini.models_asked == list(GEMINI_MODELS)
+
+
+def test_a_rejected_request_is_not_retried_on_another_model():
+    gemini = FakeGemini(error=http_error(400))
+
+    with pytest.raises(UpstreamUnavailableError):
+        build_service(news=FakeNews(stories(3)), gemini=gemini).get("AAPL")
+
+    assert gemini.models_asked == [GEMINI_MODELS[0]]

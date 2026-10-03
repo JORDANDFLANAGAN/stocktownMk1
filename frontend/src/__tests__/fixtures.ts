@@ -1,4 +1,4 @@
-import type { Instrument, MetricInfo, Universe } from '@/api/client'
+import type { Brief, Instrument, MetricInfo, Universe } from '@/api/client'
 
 /**
  * Deliberately not the S&P 500: an unclassified position and a non-equity
@@ -67,4 +67,26 @@ export const TEST_INSTRUMENT: Instrument = {
   market_cap_usd: 1_500_000_000_000,
   dividend_yield: 0.005,
   earnings_yield: 0.04,
+}
+
+/** AAA's AI brief: two news points, each backed by a source. */
+export const TEST_BRIEF: Brief = {
+  ticker: 'AAA',
+  about: 'Alpha Corp makes widgets and sells them to businesses.',
+  news: ['Alpha Corp opened a new widget plant.', 'Alpha Corp named a new chief executive.'],
+  sources: [
+    {
+      headline: 'Alpha Corp Opens Plant in Ohio',
+      source: 'Yahoo',
+      url: 'https://example.com/alpha-plant',
+      published_at: '2026-10-02T14:00:00Z',
+    },
+    {
+      headline: 'Alpha Corp Names New CEO',
+      source: 'CNBC',
+      url: 'https://example.com/alpha-ceo',
+      published_at: '2026-10-01T18:30:00Z',
+    },
+  ],
+  model: 'gemini-3.8-flash',
 }
