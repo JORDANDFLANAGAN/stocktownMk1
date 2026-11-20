@@ -28,6 +28,7 @@ import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer
 import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 
 import type { StyledBuilding } from '@/lib/cityAppearance'
+import { DAY_CHANGE_KEY } from '@/lib/cityAppearance'
 import { CITY_SIZE, type DistrictPlot } from '@/lib/cityLayout'
 import { MAX_HEIGHT } from '@/lib/cityScales'
 import {
@@ -45,6 +46,7 @@ const props = defineProps<{
   districts: DistrictPlot[]
   viewMode: CityViewMode
   selectedTicker?: string
+  heightMetricKey: string
 }>()
 const emit = defineEmits<{
   hover: [hover: BuildingHover | null]
@@ -263,7 +265,14 @@ function createLabel(building: StyledBuilding): BuildingLabel {
   ticker.className = 'font-semibold'
   ticker.textContent = building.ticker
   const weightLine = document.createElement('div')
-  weightLine.textContent = formatPercent(building.weight, { digits: 2 })
+  if (props.heightMetricKey === DAY_CHANGE_KEY) {
+    weightLine.textContent =
+      building.metricValue !== null
+        ? formatPercent(building.metricValue, { digits: 2, showPlus: true })
+        : '—'
+  } else {
+    weightLine.textContent = formatPercent(building.weight, { digits: 2 })
+  }
   const element = document.createElement('div')
   element.className = 'text-center text-[11px] leading-tight text-zinc-900'
   element.append(ticker, weightLine)

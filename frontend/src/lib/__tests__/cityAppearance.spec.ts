@@ -2,10 +2,19 @@ import { describe, expect, it } from 'vitest'
 
 import type { Position } from '@/api/client'
 import { TEST_CATALOGUE, TEST_PORTFOLIO } from '@/__tests__/fixtures'
-import { sectorColours, sectorKey, styleBuildings, UNCLASSIFIED_COLOUR } from '../cityAppearance'
+import {
+  DAY_CHANGE_KEY,
+  GAIN_COLOUR,
+  LOSS_COLOUR,
+  sectorColours,
+  sectorKey,
+  styleBuildings,
+  UNCLASSIFIED_COLOUR,
+} from '../cityAppearance'
 import type { BuildingPlot } from '../cityLayout'
 import { MAX_HEIGHT, MIN_HEIGHT } from '../cityScales'
 
+const DAY_CHANGE = TEST_CATALOGUE[0]! // AAA +1.2%, BBB -2.1%, CCC null
 const BETA = TEST_CATALOGUE[1]! // AAA 1.3 (highest), BBB none, CCC 0.1 (lowest)
 const POSITIONS = TEST_PORTFOLIO.positions // AAA Technology, BBB no sector, CCC Fixed Income
 
@@ -78,6 +87,49 @@ describe('styleBuildings', () => {
     const buildings = styleBuildings(plotsFor(['AAA', 'BBB', 'CCC']), withoutEntry, BETA)
 
     expect(buildings.map(({ height }) => height)).toEqual([MAX_HEIGHT, MIN_HEIGHT, MIN_HEIGHT])
+  })
+
+  it('carries each position raw metric value for use in top-down labels', () => {
+    const buildings = styleBuildings(plotsFor(['AAA', 'BBB', 'CCC']), POSITIONS, BETA)
+
+    expect(buildings.map(({ ticker, metricValue }) => [ticker, metricValue])).toEqual([
+      ['AAA', 1.3],
+      ['BBB', null],
+      ['CCC', 0.1],
+    ])
+  })
+})
+
+describe(`styleBuildings — ${DAY_CHANGE_KEY} metric`, () => {
+  it('colours a positive day change green', () => {
+    // AAA has day_change: 0.012 (positive)
+    const [aaa] = styleBuildings(plotsFor(['AAA']), POSITIONS, DAY_CHANGE)
+
+    expect(aaa!.colour).toBe(GAIN_COLOUR)
+  })
+
+  it('colours a negative day change red', () => {
+    // BBB has day_change: -0.021 (negative)
+    const [bbb] = styleBuildings(plotsFor(['BBB']), POSITIONS, DAY_CHANGE)
+
+    expect(bbb!.colour).toBe(LOSS_COLOUR)
+  })
+
+  it('colours a null day change grey', () => {
+    // CCC has day_change: null
+    const [ccc] = styleBuildings(plotsFor(['CCC']), POSITIONS, DAY_CHANGE)
+
+    expect(ccc!.colour).toBe(UNCLASSIFIED_COLOUR)
+  })
+
+  it('populates metricValue with the raw day change fraction', () => {
+    const buildings = styleBuildings(plotsFor(['AAA', 'BBB', 'CCC']), POSITIONS, DAY_CHANGE)
+
+    expect(buildings.map(({ ticker, metricValue }) => [ticker, metricValue])).toEqual([
+      ['AAA', 0.012],
+      ['BBB', -0.021],
+      ['CCC', null],
+    ])
   })
 })
 

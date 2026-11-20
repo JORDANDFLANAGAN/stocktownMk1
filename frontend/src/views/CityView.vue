@@ -5,11 +5,12 @@ import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import type { MetricInfo } from '@/api/client'
 import BuildingTooltip from '@/components/city/BuildingTooltip.vue'
 import CityCanvas from '@/components/city/CityCanvas.vue'
+import DayChangeLegend from '@/components/city/DayChangeLegend.vue'
 import MetricPicker from '@/components/city/MetricPicker.vue'
 import SectorLegend from '@/components/city/SectorLegend.vue'
 import ViewModeToggle from '@/components/city/ViewModeToggle.vue'
 import { useQueryHeight } from '@/composables/useQueryState'
-import { sectorKey, styleBuildings } from '@/lib/cityAppearance'
+import { DAY_CHANGE_KEY, sectorKey, styleBuildings } from '@/lib/cityAppearance'
 import { layoutCity } from '@/lib/cityLayout'
 import type { BuildingHover, CityViewMode } from '@/lib/cityView'
 import { useUniverseStore } from '@/stores/universe'
@@ -62,6 +63,7 @@ function metricOrFirst(key: string): MetricInfo {
         :districts="layout.districts"
         :view-mode="viewMode"
         :selected-ticker="selectedTicker"
+        :height-metric-key="heightMetric.key"
         @hover="(hover) => (hovered = hover)"
         @select="openDrawer"
       />
@@ -78,7 +80,12 @@ function metricOrFirst(key: string): MetricInfo {
           @update:model-value="(key) => (height = key)"
         />
       </div>
-      <SectorLegend :sectors="sectors" class="absolute bottom-3 left-3" />
+      <SectorLegend
+        v-if="heightMetric.key !== DAY_CHANGE_KEY"
+        :sectors="sectors"
+        class="absolute bottom-3 left-3"
+      />
+      <DayChangeLegend v-else class="absolute bottom-3 left-3" />
       <ViewModeToggle v-model="viewMode" class="absolute top-3 right-3" />
     </template>
     <p v-else class="p-6 text-sm text-muted-foreground">

@@ -6,6 +6,10 @@ import { sectorsIn, UNCLASSIFIED } from './positions'
 /** Neutral grey (zinc-400) for positions with no sector. */
 export const UNCLASSIFIED_COLOUR = '#a1a1aa'
 
+export const DAY_CHANGE_KEY = 'day_change'
+export const GAIN_COLOUR = '#16a34a' // green-600
+export const LOSS_COLOUR = '#dc2626' // red-600
+
 // One colour per GICS sector (the names SSGA's sector funds use). Eight are a validated
 // colour-blind-safe categorical set; cyan, brown and plum extend it to eleven. The pairing was
 // checked against the S&P city's layout: every two neighbouring districts stay distinct under
@@ -32,11 +36,18 @@ export interface StyledBuilding extends BuildingPlot {
   height: number
   colour: string
   weight: number
+  metricValue: number | null
+}
+
+function dayChangeColour(value: number | null): string {
+  if (value === null || value === 0) return UNCLASSIFIED_COLOUR
+  return value > 0 ? GAIN_COLOUR : LOSS_COLOUR
 }
 
 /**
  * Each plot's height from the chosen metric (scaled against the positions on screen) and colour
- * from its sector. Plots are matched to positions by ticker: the layout orders them by weight.
+ * from its sector — or green/red when day change is the metric.
+ * Plots are matched to positions by ticker: the layout orders them by weight.
  */
 export function styleBuildings(
   plots: BuildingPlot[],
@@ -49,14 +60,19 @@ export function styleBuildings(
   )
   const colourOf = sectorColours(sectorsIn(positions))
   const byTicker = new Map(positions.map((position) => [position.ticker, position]))
+  const isDayChange = heightMetric.key === DAY_CHANGE_KEY
 
   return plots.map((plot) => {
     const position = byTicker.get(plot.ticker)
+    const metricValue = position?.metrics[heightMetric.key] ?? null
     return {
       ...plot,
-      height: heightOf(position?.metrics[heightMetric.key] ?? null),
-      colour: colourOf.get(plot.sector) ?? UNCLASSIFIED_COLOUR,
+      height: heightOf(metricValue),
+      colour: isDayChange
+        ? dayChangeColour(metricValue)
+        : (colourOf.get(plot.sector) ?? UNCLASSIFIED_COLOUR),
       weight: position?.weight ?? 0,
+      metricValue,
     }
   })
 }
